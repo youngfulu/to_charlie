@@ -1,0 +1,66 @@
+{
+  "patchCommentsSource": "Charlie web UI ↔ RNBO inports (export has 0 params; controls are [inport] tags).",
+  "visualization": {
+    "source": "signalOutlet",
+    "outletTag": "out3",
+    "channelIndex": null
+  },
+  "mouseRnd": {
+    "tryInportTags": ["rnd"],
+    "tryParamIds": [],
+    "pixelsForFullRange": 320,
+    "inMin": 0,
+    "inMax": 1,
+    "note": "Click-drag sends floats to inport rnd (accumulated 0…1 by default)."
+  },
+  "knobs": [
+    {
+      "uiIndex": 0,
+      "uiLabel": "gain input",
+      "tryParamIds": [],
+      "tryInportTags": ["gain1"],
+      "inMin": 0,
+      "inMax": 1
+    },
+    {
+      "uiIndex": 1,
+      "uiLabel": "Dry / Wet",
+      "tryParamIds": [],
+      "tryInportTags": ["dw"],
+      "inMin": 0,
+      "inMax": 1
+    },
+    {
+      "uiIndex": 2,
+      "uiLabel": "gain noise",
+      "tryParamIds": [],
+      "tryInportTags": ["gain2"],
+      "inMin": 0,
+      "inMax": 1
+    }
+  ],
+  "buttons": [
+    {
+      "uiIndex": 0,
+      "uiLabel": "Hard / Soft",
+      "tryParamIds": [],
+      "tryInportTags": ["hardsoft"]
+    },
+    {
+      "uiIndex": 1,
+      "uiLabel": "normal / inverse",
+      "optional": true,
+      "tryParamIds": [],
+      "tryInportTags": [],
+      "note": "No mapping assigned — patch inports gain3, hold, gogogo still free."
+    },
+    {
+      "uiIndex": 2,
+      "uiLabel": "Step / Flow",
+      "tryParamIds": [],
+      "tryInportTags": ["flow"]
+    }
+  ],
+  "unmappedPatchInports": ["gain3", "hold", "gogogo"],
+  "unmappedPatchInportsNote": "Present in export desc.inports but not wired to this UI. Wire one to btn[1] or add controls if needed."
+}

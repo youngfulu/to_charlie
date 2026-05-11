@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<!-- min-rnbo-ui v1.0.3 — RNBO/web I/O: RNBO_IO_MAP.txt + rnbo-io-map.json | embed: ?embed=1 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>min RNBO UI</title>
+  <style>
+    :root {
+      /* Page fill: visible in browser; use html.max-embed { --page-fill: transparent } in jweb if needed */
+      --page-fill: #0c0c0c;
+      --accent: rgba(255, 255, 255, 0.92);
+      --accent-dim: rgba(255, 255, 255, 0.18);
+      --dial-track: rgba(255, 255, 255, 0.28);
+      --text: #f0f0f0;
+      --text-muted: rgba(255, 255, 255, 0.55);
+      --overlay-dim: rgba(0, 0, 0, 0.55);
+      --bang-size: clamp(3rem, 14vmin, 5.5rem);
+      --modal-pad: clamp(0.75rem, 3vmin, 1.25rem);
+      --knob-size: clamp(3.25rem, 16vmin, 5rem);
+      --bang-ring: rgba(255, 255, 255, 0.55);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: clamp(11px, 2.2vmin, 16px);
+    }
+
+    * { box-sizing: border-box; }
+    html {
+      margin: 0;
+      height: 100%;
+      background: var(--page-fill);
+    }
+    /* Optional: <html class="max-embed"> when jweb should not paint a solid page color */
+    html.max-embed {
+      --page-fill: transparent;
+    }
+    body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: transparent;
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    #root {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: clamp(8px, 2vmin, 16px) clamp(8px, 2vmin, 16px) 0 0;
+      pointer-events: none;
+    }
+    #root .bang-wrap {
+      pointer-events: auto;
+    }
+
+    /* --- Main bang (circle): upper-right --- */
+    .bang-wrap {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+
+    .bang {
+      width: var(--bang-size);
+      height: var(--bang-size);
+      border-radius: 50%;
+      border: 2px solid var(--bang-ring);
+      background: transparent;
+      cursor: pointer;
+      opacity: 1;
+      transition: opacity 1s ease, transform 0.12s ease, background 0.12s ease;
+    }
+    .bang.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+      cursor: default;
+    }
+    .bang.is-hidden:hover,
+    .bang.is-hidden:active {
+      transform: none;
+      background: transparent;
+    }
+    .bang:hover:not(.is-hidden) {
+      background: var(--accent-dim);
+      transform: scale(1.04);
+    }
+    .bang:active:not(.is-hidden) {
+      transform: scale(0.96);
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .bang:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.5);
+      outline-offset: 3px;
+    }
+
+    /* Full-screen dimmer + panel: fade in/out 1s (visibility follows opacity) */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: clamp(8px, 2vmin, 16px) clamp(8px, 2vmin, 16px) var(--modal-pad) var(--modal-pad);
+      background: var(--overlay-dim);
+      z-index: 10;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 1s ease, visibility 0s linear 1s;
+    }
+    .overlay.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition: opacity 1s ease, visibility 0s;
+    }
+
+    .panel {
+      position: relative;
+      width: min(100%, 28rem);
+      max-width: min(100vw - 1.5rem, 28rem);
+      max-height: min(92dvh, 40rem);
+      margin-top: calc(var(--bang-size) + clamp(6px, 1.5vmin, 12px));
+      overflow: visible;
+      padding: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    /* Smooth rect: all knobs + buttons live inside this frame */
+    .panel-frame {
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: clamp(10px, 2vmin, 16px);
+      padding: clamp(1.1rem, 3.2vmin, 1.5rem);
+      padding-top: clamp(2rem, 5vmin, 2.6rem);
+      background: transparent;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    }
+
+    .close-x {
+      position: absolute;
+      top: clamp(0.45rem, 1.5vmin, 0.65rem);
+      right: clamp(0.45rem, 1.5vmin, 0.65rem);
+      width: clamp(1.5rem, 6vmin, 2rem);
+      height: clamp(1.5rem, 6vmin, 2rem);
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      font-size: 1.15rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background 0.15s;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    }
+    .close-x:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .knob-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(0.75rem, 4vmin, 1.5rem);
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .knob-field {
+      flex: 1 1 28%;
+      min-width: 5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.28rem;
+    }
+
+    .knob-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+      text-transform: none;
+      color: var(--text-muted);
+      line-height: 1.2;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* Minimal rotary: thin track + value arc only */
+    .dial {
+      position: relative;
+      width: var(--knob-size);
+      height: var(--knob-size);
+      touch-action: none;
+    }
+    .dial svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .dial .arc-bg {
+      stroke: var(--dial-track);
+      fill: none;
+    }
+    .dial .arc-val {
+      stroke: var(--accent);
+      stroke-linecap: round;
+      fill: none;
+    }
+    .dial .cap {
+      fill: var(--accent);
+    }
+
+    /* Same typographic size as .knob-label; sits under each knob */
+    .txt-btn {
+      width: 100%;
+      margin: 0;
+      padding: 0.2rem 0.4rem;
+      min-height: 0;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+      text-transform: none;
+      line-height: 1.2;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+    .txt-btn.on {
+      background: rgba(255, 255, 255, 0.5);
+      color: #111;
+      border-color: rgba(17, 17, 17, 0.35);
+    }
+    .txt-btn:active:not(.on) {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="bang-wrap">
+      <button type="button" class="bang" id="bang" aria-label="Open controls" title="Open"></button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <div class="panel" role="dialog" aria-labelledby="panel-title">
+      <h2 id="panel-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Controls</h2>
+      <div class="panel-frame">
+        <button type="button" class="close-x" id="closeX" aria-label="Close">×</button>
+        <div class="knob-row" id="knobRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  var KNOB_MIN = 1;
+  var KNOB_MAX = 127;
+  var N_KNOBS = 3;
+
+  function isEmbedParent() {
+    try {
+      return new URLSearchParams(window.location.search).get("embed") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function toMax() {
+    var args = Array.prototype.slice.call(arguments);
+    if (isEmbedParent() && window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ source: "min-rnbo-ui", args: args }, "*");
+      } catch (e) {}
+      return;
+    }
+    if (typeof window !== "undefined" && window.max && typeof window.max.outlet === "function") {
+      window.max.outlet.apply(window.max, args);
+      return;
+    }
+    if (typeof console !== "undefined") {
+      console.log.apply(console, ["[toMax]"].concat(args));
+    }
+  }
+
+  function clamp(v, lo, hi) {
+    return Math.min(hi, Math.max(lo, v));
+  }
+
+  /* --- Knobs: value 1..127, Live-style arc ~270° --- */
+  function dialValueToAngle(v) {
+    var t = (v - KNOB_MIN) / (KNOB_MAX - KNOB_MIN);
+    var start = -225 * (Math.PI / 180);
+    var sweep = 270 * (Math.PI / 180);
+    return start + t * sweep;
+  }
+
+  function buildDial(index, initial, btnEl, knobTitle) {
+    var wrap = document.createElement("div");
+    wrap.className = "knob-field";
+
+    var lab = document.createElement("div");
+    lab.className = "knob-label";
+    lab.textContent = knobTitle || "Param " + (index + 1);
+
+    var dial = document.createElement("div");
+    dial.className = "dial";
+    dial.setAttribute("data-idx", String(index));
+
+    var sz = 100;
+    var cx = sz / 2;
+    var cy = sz / 2;
+    var rArc = 34;
+
+    var svgNS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + sz + " " + sz);
+
+    function polar(a, rad) {
+      return { x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a) };
+    }
+
+    var startA = -225 * (Math.PI / 180);
+    var sweepRad = 270 * (Math.PI / 180);
+    var endA = startA + sweepRad;
+    var p0 = polar(startA, rArc);
+    var p1 = polar(endA, rArc);
+    var arcBg = document.createElementNS(svgNS, "path");
+    arcBg.setAttribute("class", "arc-bg");
+    arcBg.setAttribute("stroke-width", "1.75");
+    arcBg.setAttribute("d", "M " + p0.x + " " + p0.y + " A " + rArc + " " + rArc + " 0 1 1 " + p1.x + " " + p1.y);
+
+    var arcVal = document.createElementNS(svgNS, "path");
+    arcVal.setAttribute("class", "arc-val");
+    arcVal.setAttribute("stroke-width", "2");
+
+    var cap = document.createElementNS(svgNS, "circle");
+    cap.setAttribute("class", "cap");
+    cap.setAttribute("r", "2.25");
+
+    svg.appendChild(arcBg);
+    svg.appendChild(arcVal);
+    svg.appendChild(cap);
+
+    var state = { v: clamp(initial, KNOB_MIN, KNOB_MAX) };
+
+    function updateArc() {
+      var a = dialValueToAngle(state.v);
+      var mid = polar(a, rArc);
+      var deltaA = a - startA;
+      if (deltaA < 0) deltaA = 0;
+      if (deltaA > sweepRad) deltaA = sweepRad;
+      var large = deltaA > Math.PI ? 1 : 0;
+      arcVal.setAttribute(
+        "d",
+        "M " + p0.x + " " + p0.y + " A " + rArc + " " + rArc + " 0 " + large + " 1 " + mid.x + " " + mid.y
+      );
+      cap.setAttribute("cx", String(mid.x));
+      cap.setAttribute("cy", String(mid.y));
+    }
+
+    function setV(v) {
+      var nv = clamp(Math.round(v), KNOB_MIN, KNOB_MAX);
+      if (nv === state.v) return;
+      state.v = nv;
+      updateArc();
+      toMax("knob", index, nv);
+    }
+
+    updateArc();
+
+    var dragging = false;
+    var lastY = 0;
+
+    function pointerDown(ev) {
+      dragging = true;
+      lastY = ev.clientY;
+      dial.setPointerCapture(ev.pointerId);
+    }
+    function pointerMove(ev) {
+      if (!dragging) return;
+      var dy = lastY - ev.clientY;
+      lastY = ev.clientY;
+      setV(state.v + dy * 0.65);
+    }
+    function pointerUp(ev) {
+      dragging = false;
+      try {
+        dial.releasePointerCapture(ev.pointerId);
+      } catch (e) {}
+    }
+
+    dial.addEventListener("pointerdown", pointerDown);
+    dial.addEventListener("pointermove", pointerMove);
+    dial.addEventListener("pointerup", pointerUp);
+    dial.addEventListener("pointercancel", pointerUp);
+
+    dial.addEventListener("wheel", function (ev) {
+      ev.preventDefault();
+      setV(state.v + (ev.deltaY < 0 ? 1 : -1));
+    }, { passive: false });
+
+    wrap.appendChild(lab);
+    wrap.appendChild(dial);
+    if (btnEl) wrap.appendChild(btnEl);
+    dial.appendChild(svg);
+
+    return { el: wrap, setV: setV, getV: function () { return state.v; } };
+  }
+
+  /* --- Text buttons: toggle 0/1, label swaps off/on --- */
+  function buildTxtBtn(index, labelOff, labelOn) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "txt-btn";
+    var on = false;
+
+    function applyLabel() {
+      b.textContent = on ? labelOn : labelOff;
+    }
+    applyLabel();
+
+    function send() {
+      toMax("btn", index, on ? 1 : 0);
+    }
+
+    b.addEventListener("click", function () {
+      on = !on;
+      b.classList.toggle("on", on);
+      applyLabel();
+      send();
+    });
+
+    return {
+      el: b,
+      setOn: function (v) {
+        on = !!v;
+        b.classList.toggle("on", on);
+        applyLabel();
+      }
+    };
+  }
+
+  /* --- DOM wiring --- */
+  var overlay = document.getElementById("overlay");
+  var bang = document.getElementById("bang");
+  var closeX = document.getElementById("closeX");
+  var knobRow = document.getElementById("knobRow");
+
+  var knobTitles = ["gain input", "Dry / Wet", "gain noise"];
+  var btnPairs = [
+    { off: "Hard", on: "Soft" },
+    { off: "A", on: "Ɐ" },
+    { off: "Step", on: "Flow" }
+  ];
+
+  var knobs = [];
+  var btns = [];
+  for (var i = 0; i < N_KNOBS; i++) {
+    var pair = btnPairs[i];
+    var t = buildTxtBtn(i, pair.off, pair.on);
+    btns.push(t);
+    var k = buildDial(i, 64, t.el, knobTitles[i]);
+    knobs.push(k);
+    knobRow.appendChild(k.el);
+  }
+
+  var panelClosing = false;
+
+  function openPanel() {
+    if (overlay.classList.contains("open")) return;
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+    toMax("panel_open");
+  }
+
+  function closePanel() {
+    if (!overlay.classList.contains("open") || panelClosing) return;
+    panelClosing = true;
+    overlay.setAttribute("aria-hidden", "true");
+    bang.classList.remove("is-hidden");
+
+    function done() {
+      overlay.removeEventListener("transitionend", onOverlayTransEnd);
+      window.clearTimeout(fallback);
+      panelClosing = false;
+      toMax("panel_close");
+    }
+
+    function onOverlayTransEnd(ev) {
+      if (ev.target !== overlay || ev.propertyName !== "opacity") return;
+      done();
+    }
+
+    var fallback = window.setTimeout(done, 1100);
+    overlay.addEventListener("transitionend", onOverlayTransEnd);
+    overlay.classList.remove("open");
+  }
+
+  closeX.addEventListener("click", closePanel);
+  overlay.addEventListener("click", function (ev) {
+    if (ev.target === overlay) closePanel();
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") closePanel();
+  });
+
+  bang.addEventListener("click", function () {
+    toMax("bang");
+    bang.classList.add("is-hidden");
+    openPanel();
+  });
+
+  /* Optional: receive from Max (see min-rnbo-ui-SETUP.txt) */
+  if (window.max && typeof window.max.bindInlet === "function") {
+    window.max.bindInlet("set_knob", function (idx, val) {
+      var i = +idx;
+      if (i >= 0 && i < knobs.length) knobs[i].setV(+val);
+    });
+    window.max.bindInlet("set_btn", function (idx, val) {
+      var j = +idx;
+      if (j >= 0 && j < btns.length) btns[j].setOn(+val !== 0);
+    });
+  }
+
+  toMax("ui_ready");
+
+  /* Charlie host: click-drag rnd relay (parent does not see moves inside iframe) */
+  if (isEmbedParent() && window.parent && window.parent !== window) {
+    function rndDragSurfaceOk(el) {
+      return (
+        el &&
+        el.closest &&
+        !el.closest(".knob-field") &&
+        !el.closest(".bang") &&
+        !el.closest("button") &&
+        !el.closest(".close-x")
+      );
+    }
+
+    var rndDragPid = null;
+    var rndLx = 0;
+    var rndLy = 0;
+
+    document.addEventListener(
+      "pointerdown",
+      function (ev) {
+        if (ev.button !== 0 || !rndDragSurfaceOk(ev.target)) return;
+        rndDragPid = ev.pointerId;
+        rndLx = ev.clientX;
+        rndLy = ev.clientY;
+      },
+      true
+    );
+
+    function rndDragEnd(ev) {
+      if (rndDragPid !== null && ev.pointerId === rndDragPid) rndDragPid = null;
+    }
+
+    document.addEventListener("pointerup", rndDragEnd, true);
+    document.addEventListener("pointercancel", rndDragEnd, true);
+
+    document.addEventListener(
+      "pointermove",
+      function (ev) {
+        if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
+        var dx = ev.clientX - rndLx;
+        var dy = ev.clientY - rndLy;
+        rndLx = ev.clientX;
+        rndLy = ev.clientY;
+        try {
+          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy }, "*");
+        } catch (eRnd) {}
+      },
+      true
+    );
+  }
+})();
+  </script>
+</body>
+</html>

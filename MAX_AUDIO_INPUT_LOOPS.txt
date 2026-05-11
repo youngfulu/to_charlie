@@ -1,0 +1,35 @@
+Audio assets (project folder: media/)
+--------------------------------------
+  media/to_charlie-vox-short-320k.mp3   — WAV converted with ffmpeg: libmp3lame 320 kb/s CBR
+  media/mid_droun.mp3                  — drone (copy) → intended for patch input 3
+  media/sub_droun.mp3                  — drone (copy) → intended for patch input 4
+
+Source WAV path (note the space in the filename):
+  .../spoken word/to charlie/to charlie-vox-short.wav
+
+Max / RNBO patcher (you wire this in the UI — do not hand-edit to_charlie.rnbopat JSON)
+----------------------------------------------------------------------------------------
+Goal: looped playback, unity gain (“max” = 0 dB, no attenuation), summed with existing in~ 1–4.
+
+1) Relative path: save to_charlie.rnbopat from the rnbo_to_charlie folder so ./media/... resolves, or use absolute paths in buffer~ @file.
+
+2) For each loop, typical chain:
+     buffer~ <name> @file ./media/<file>.mp3
+     groove~ <name> 0 @loop 1
+     *~ 1.                    ← full-scale gain (adjust if you clip)
+   Send groove~ (or *~) output into a *+~* that also receives the existing *in~ N* branch so external audio still works.
+
+3) Suggested routing (matches your request):
+   • in~ 1 and in~ 2: vox — either
+       - one stereo file: groove~ on buffer with 2 chans, left → +~ with in~1, right → +~ with in~2, or
+       - two groove~ objects both @file ./media/to_charlie-vox-short-320k.mp3 @loop 1 (mono) into +~ with in1 / in2.
+   • in~ 3: mid_droun.mp3  (buffer~ + groove~ @loop 1 + *~ 1. → +~ with in~3)
+   • in~ 4: sub_droun.mp3  (same pattern → +~ with in~4)
+
+4) Start playback: bang or 1 into groove~’s play inlet (see groove~ help). Loop is @loop 1 on groove~.
+
+5) Re-export charlie.testme.json after editing so web / targets see new buffer~ file entries if you add buffers to the patch.
+
+Web export note
+---------------
+If you rely on buffer~ + dependencies.json for RNBO web, run the export sidebar / collect dependencies so URLs or file paths are embedded; the static http.server test page does not auto-load these MP3s without patch + export support.
