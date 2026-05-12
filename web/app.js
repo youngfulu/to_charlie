@@ -570,6 +570,11 @@
         var outputNode = context.createGain();
         outputNode.connect(context.destination);
 
+        /* Expose resume for direct call from start button (iOS requires in-gesture call) */
+        window.charlieResumeAudio = function () {
+          try { context.resume(); } catch (e) {}
+        };
+
         return RNBO.createDevice({ context: context, patcher: patcher }).then(function (device) {
           window.rnboDevice = device;
           window.rnboAudioContext = context;

@@ -113,6 +113,8 @@
   <script>
     document.getElementById("start-btn").addEventListener("click", function () {
       var btn = this;
+      /* iOS: call resume() synchronously in gesture handler before any async */
+      if (window.charlieResumeAudio) window.charlieResumeAudio();
       var vid = document.getElementById("video-lamp");
       if (vid) { vid.style.display = "block"; vid.play().catch(function () {}); }
       btn.classList.add("gone");
