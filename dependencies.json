@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "mid",
+    "file": "media/mid_droun.mp3"
+  },
+  {
+    "id": "low",
+    "file": "media/sub_droun.mp3"
+  },
+  {
+    "id": "charlie",
+    "file": "media/to_charlie-vox-short-320k.mp3"
+  }
+]

@@ -32,4 +32,7 @@ Goal: looped playback, unity gain (“max” = 0 dB, no attenuation), summed wit
 
 Web export note
 ---------------
-If you rely on buffer~ + dependencies.json for RNBO web, run the export sidebar / collect dependencies so URLs or file paths are embedded; the static http.server test page does not auto-load these MP3s without patch + export support.
+The web host loads **dependencies.json** (next to charlie.testme.json) via
+`loadDataBufferDependencies` so buffer~ samples resolve under **media/** when you
+serve from the project root (e.g. `python3 -m http.server` in rnbo_to_charlie).
+Re-export after changing buffer files or paths.

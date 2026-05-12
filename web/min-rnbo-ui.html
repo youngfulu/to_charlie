@@ -15,7 +15,8 @@
       --text: #f0f0f0;
       --text-muted: rgba(255, 255, 255, 0.55);
       --overlay-dim: rgba(0, 0, 0, 0.55);
-      --bang-size: clamp(3rem, 14vmin, 5.5rem);
+      --bang-size: clamp(1.5rem, 7vmin, 2.75rem);
+      --bang-hud-size: calc(var(--bang-size) * 0.55);
       --modal-pad: clamp(0.75rem, 3vmin, 1.25rem);
       --knob-size: clamp(3.25rem, 16vmin, 5rem);
       --bang-ring: rgba(255, 255, 255, 0.55);
@@ -56,6 +57,141 @@
     }
     #root .bang-wrap {
       pointer-events: auto;
+    }
+
+    .bang-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: clamp(6px, 1.5vmin, 10px);
+    }
+
+    .bang--hud {
+      width: var(--bang-hud-size);
+      height: var(--bang-hud-size);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.38);
+      background: rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      opacity: 1;
+      transition: opacity 1s ease, transform 0.12s ease, background 0.12s ease;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: clamp(0.55rem, 2vmin, 0.85rem);
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .bang--hud.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #root .bang.bang-peer-dimmed:not(.is-hidden) {
+      opacity: 0.12;
+      pointer-events: none;
+      transition: opacity 1s ease, transform 0.12s ease, background 0.12s ease;
+    }
+    #root .bang.bang-peer-dimmed:not(.is-hidden):hover,
+    #root .bang.bang-peer-dimmed:not(.is-hidden):active {
+      transform: none;
+      background: transparent;
+    }
+    .bang--hud:hover:not(.is-hidden) {
+      background: rgba(255, 255, 255, 0.14);
+      transform: scale(1.05);
+    }
+    .bang--hud:active:not(.is-hidden) {
+      transform: scale(0.95);
+    }
+
+    .overlay--hud {
+      z-index: 15;
+    }
+    /* Shrink entire telemetry panel (chrome + type + controls), not typography alone */
+    .overlay--hud .panel.panel--hud {
+      transform: scale(calc(1 / 1.5));
+      transform-origin: top right;
+    }
+    .panel--hud {
+      max-width: min(20rem, 94vw);
+    }
+    .bang-wrap--hud-scaled {
+      transform: scale(calc(1 / 1.5));
+      transform-origin: center right;
+    }
+    .hud-frame {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.4rem, 1.5vmin, 0.65rem);
+      align-items: stretch;
+    }
+    .hud-head {
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    #hud-panel-dump-led {
+      align-self: center;
+      width: clamp(28px, 8vmin, 40px);
+      height: clamp(28px, 8vmin, 40px);
+      border-radius: 50%;
+      background: #000;
+      flex-shrink: 0;
+      box-shadow: none;
+      filter: blur(10px);
+      -webkit-filter: blur(10px);
+    }
+    .hud-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    #dump-smooth {
+      width: 100%;
+      accent-color: #9cf;
+    }
+    .hud-tele-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.35rem;
+      font-size: 0.68rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .hud-tele-row .t-name {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 58%;
+    }
+    .hud-tele-row .t-val {
+      color: rgba(180, 255, 200, 0.95);
+    }
+    #hud-fps-meter {
+      text-align: center;
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 0.15rem;
+    }
+
+    .hud-tele-row.tele-bang-flash .t-val {
+      color: rgba(255, 255, 255, 1);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.95);
+      animation: tele-bang-pop 0.2s ease-out 1;
+    }
+    @keyframes tele-bang-pop {
+      from {
+        transform: scale(1.2);
+        opacity: 1;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
     }
 
     /* --- Main bang (circle): upper-right --- */
@@ -105,7 +241,7 @@
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
-      padding: clamp(8px, 2vmin, 16px) clamp(8px, 2vmin, 16px) var(--modal-pad) var(--modal-pad);
+      padding: clamp(4px, 1vmin, 10px) clamp(8px, 2vmin, 16px) var(--modal-pad) var(--modal-pad);
       background: var(--overlay-dim);
       z-index: 10;
       opacity: 0;
@@ -125,7 +261,8 @@
       width: min(100%, 28rem);
       max-width: min(100vw - 1.5rem, 28rem);
       max-height: min(92dvh, 40rem);
-      margin-top: calc(var(--bang-size) + clamp(6px, 1.5vmin, 12px));
+      margin-top: 0;
+      align-self: flex-start;
       overflow: visible;
       padding: 0;
       background: transparent;
@@ -253,8 +390,13 @@
 </head>
 <body>
   <div id="root">
-    <div class="bang-wrap">
-      <button type="button" class="bang" id="bang" aria-label="Open controls" title="Open"></button>
+    <div class="bang-stack">
+      <div class="bang-wrap">
+        <button type="button" class="bang" id="bang" aria-label="Open controls" title="Open"></button>
+      </div>
+      <div class="bang-wrap bang-wrap--hud-scaled">
+        <button type="button" class="bang bang--hud" id="bangHud" aria-label="Open telemetry HUD" title="HUD">◌</button>
+      </div>
     </div>
   </div>
 
@@ -264,6 +406,24 @@
       <div class="panel-frame">
         <button type="button" class="close-x" id="closeX" aria-label="Close">×</button>
         <div class="knob-row" id="knobRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay overlay--hud" id="overlayHud" aria-hidden="true">
+    <div class="panel panel--hud" role="dialog" aria-labelledby="hud-panel-title">
+      <h2 id="hud-panel-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Telemetry</h2>
+      <div class="panel-frame hud-frame">
+        <button type="button" class="close-x" id="closeHudX" aria-label="Close HUD">×</button>
+        <div class="hud-head">Dump · live</div>
+        <div id="hud-panel-dump-led" aria-hidden="true"></div>
+        <label class="hud-label" for="dump-smooth">Dump smooth</label>
+        <input type="range" id="dump-smooth" min="0" max="100" value="35" title="Left: raw dump (no smoothing). Right: heavy smoothing for the video lamp." />
+        <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock</span><span class="t-val" id="tele-gpl">—</span></div>
+        <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock2</span><span class="t-val" id="tele-gpl2">—</span></div>
+        <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
+        <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
+        <div id="hud-fps-meter">— fps</div>
       </div>
     </div>
   </div>
@@ -453,15 +613,39 @@
         on = !!v;
         b.classList.toggle("on", on);
         applyLabel();
+        send();
       }
     };
   }
 
   /* --- DOM wiring --- */
   var overlay = document.getElementById("overlay");
+  var overlayHud = document.getElementById("overlayHud");
   var bang = document.getElementById("bang");
+  var bangHud = document.getElementById("bangHud");
   var closeX = document.getElementById("closeX");
+  var closeHudX = document.getElementById("closeHudX");
   var knobRow = document.getElementById("knobRow");
+  var hudDumpLedEl = document.getElementById("hud-panel-dump-led");
+  var dumpSmoothEl = document.getElementById("dump-smooth");
+  var hudFpsEl = document.getElementById("hud-fps-meter");
+
+  function setHudDumpGlow(n) {
+    if (!hudDumpLedEl) return;
+    n = Math.max(0, Math.min(1, n));
+    var g = Math.round(255 * n);
+    hudDumpLedEl.style.background = "rgb(" + g + "," + g + "," + g + ")";
+    hudDumpLedEl.style.opacity = "1";
+    if (n < 0.004) {
+      hudDumpLedEl.style.boxShadow = "none";
+    } else {
+      var spread = 6 + 28 * n;
+      var blur = 12 + 48 * n;
+      var a0 = Math.min(1, 0.22 + 0.75 * n);
+      hudDumpLedEl.style.boxShadow =
+        "0 0 " + spread + "px " + blur + "px rgba(255,255,255," + a0 + ")";
+    }
+  }
 
   var knobTitles = ["gain input", "Dry / Wet", "gain noise"];
   var btnPairs = [
@@ -470,24 +654,52 @@
     { off: "Step", on: "Flow" }
   ];
 
+  /** MIDI 1..127 → charlie-map inMin..inMax (app.js midiToNorm127); defaults: gain=1, dw=1, noise≈0.4 */
+  var KNOB_DEFAULT_MIDI = [127, 127, Math.round(1 + 0.4 * (KNOB_MAX - KNOB_MIN))];
+
   var knobs = [];
   var btns = [];
   for (var i = 0; i < N_KNOBS; i++) {
     var pair = btnPairs[i];
     var t = buildTxtBtn(i, pair.off, pair.on);
     btns.push(t);
-    var k = buildDial(i, 64, t.el, knobTitles[i]);
+    var k = buildDial(i, KNOB_DEFAULT_MIDI[i], t.el, knobTitles[i]);
     knobs.push(k);
     knobRow.appendChild(k.el);
   }
+  /* Soft on (btn 0 → hardsoft inport 1); setOn notifies parent */
+  for (var ii = 0; ii < N_KNOBS; ii++) {
+    toMax("knob", ii, KNOB_DEFAULT_MIDI[ii]);
+  }
+  btns[0].setOn(true);
 
   var panelClosing = false;
+  var panelClosingHud = false;
+
+  function syncBangPeerFade() {
+    var mainOpen = overlay.classList.contains("open");
+    var hudOpen = overlayHud && overlayHud.classList.contains("open");
+    if (bangHud) bangHud.classList.toggle("bang-peer-dimmed", !!mainOpen);
+    if (bang) bang.classList.toggle("bang-peer-dimmed", !!hudOpen);
+  }
+
+  function closeHudPanelImmediate() {
+    if (!overlayHud || !overlayHud.classList.contains("open")) return;
+    overlayHud.classList.remove("open");
+    overlayHud.setAttribute("aria-hidden", "true");
+    if (bangHud) bangHud.classList.remove("is-hidden");
+    panelClosingHud = false;
+    toMax("panel_hud_close");
+    syncBangPeerFade();
+  }
 
   function openPanel() {
     if (overlay.classList.contains("open")) return;
+    if (overlayHud && overlayHud.classList.contains("open")) closeHudPanelImmediate();
     overlay.classList.add("open");
     overlay.setAttribute("aria-hidden", "false");
     toMax("panel_open");
+    syncBangPeerFade();
   }
 
   function closePanel() {
@@ -501,6 +713,7 @@
       window.clearTimeout(fallback);
       panelClosing = false;
       toMax("panel_close");
+      syncBangPeerFade();
     }
 
     function onOverlayTransEnd(ev) {
@@ -513,13 +726,55 @@
     overlay.classList.remove("open");
   }
 
+  function openHudPanel() {
+    if (!overlayHud || overlayHud.classList.contains("open")) return;
+    overlayHud.classList.add("open");
+    overlayHud.setAttribute("aria-hidden", "false");
+    toMax("panel_hud_open");
+    syncBangPeerFade();
+  }
+
+  function closeHudPanel() {
+    if (!overlayHud || !overlayHud.classList.contains("open") || panelClosingHud) return;
+    panelClosingHud = true;
+    overlayHud.setAttribute("aria-hidden", "true");
+    if (bangHud) bangHud.classList.remove("is-hidden");
+
+    function doneHud() {
+      overlayHud.removeEventListener("transitionend", onHudTransEnd);
+      window.clearTimeout(fbHud);
+      panelClosingHud = false;
+      toMax("panel_hud_close");
+      syncBangPeerFade();
+    }
+
+    function onHudTransEnd(ev) {
+      if (ev.target !== overlayHud || ev.propertyName !== "opacity") return;
+      doneHud();
+    }
+
+    var fbHud = window.setTimeout(doneHud, 1100);
+    overlayHud.addEventListener("transitionend", onHudTransEnd);
+    overlayHud.classList.remove("open");
+  }
+
   closeX.addEventListener("click", closePanel);
   overlay.addEventListener("click", function (ev) {
     if (ev.target === overlay) closePanel();
   });
 
+  closeHudX.addEventListener("click", closeHudPanel);
+  overlayHud.addEventListener("click", function (ev) {
+    if (ev.target === overlayHud) closeHudPanel();
+  });
+
   document.addEventListener("keydown", function (ev) {
-    if (ev.key === "Escape") closePanel();
+    if (ev.key !== "Escape") return;
+    if (overlayHud && overlayHud.classList.contains("open")) {
+      closeHudPanel();
+      return;
+    }
+    closePanel();
   });
 
   bang.addEventListener("click", function () {
@@ -527,6 +782,63 @@
     bang.classList.add("is-hidden");
     openPanel();
   });
+
+  bangHud.addEventListener("click", function () {
+    toMax("bang_hud");
+    bangHud.classList.add("is-hidden");
+    openHudPanel();
+  });
+
+  if (dumpSmoothEl && isEmbedParent() && window.parent && window.parent !== window) {
+    dumpSmoothEl.addEventListener("input", function () {
+      try {
+        window.parent.postMessage(
+          { source: "charlie-dump-smooth", value: +dumpSmoothEl.value },
+          "*"
+        );
+      } catch (eSm) {}
+    });
+  }
+
+  var lastEndCycleBangHandled = 0;
+  var endCycleFlashTimer = null;
+
+  /* Parent pushes dump lamp, telemetry, fps (Charlie web host). */
+  if (isEmbedParent() && window.parent && window.parent !== window) {
+    window.addEventListener("message", function (ev) {
+      var d = ev.data;
+      if (!d || d.source !== "charlie-hud") return;
+      if (typeof d.dumpGlow === "number") setHudDumpGlow(d.dumpGlow);
+      if (d.telemetry) {
+        var t = d.telemetry;
+        var elGpl = document.getElementById("tele-gpl");
+        var elGpl2 = document.getElementById("tele-gpl2");
+        var elEc = document.getElementById("tele-ec");
+        var elSt = document.getElementById("tele-st");
+        if (elGpl && t.glitch_phasor_lock != null) elGpl.textContent = String(t.glitch_phasor_lock);
+        if (elGpl2 && t.glitch_phasor_lock2 != null) elGpl2.textContent = String(t.glitch_phasor_lock2);
+        if (elEc && t.end_cycle != null) elEc.textContent = String(t.end_cycle);
+        if (elSt && t.state != null) elSt.textContent = String(t.state);
+      }
+      if (d.fps != null && hudFpsEl) hudFpsEl.textContent = d.fps + " fps";
+      var ecRow = document.querySelector(".hud-tele-row[data-tele=\"end_cycle\"]");
+      if (
+        ecRow &&
+        typeof d.endCycleBangAt === "number" &&
+        d.endCycleBangAt > 0 &&
+        d.endCycleBangAt !== lastEndCycleBangHandled
+      ) {
+        lastEndCycleBangHandled = d.endCycleBangAt;
+        ecRow.classList.remove("tele-bang-flash");
+        void ecRow.offsetWidth;
+        ecRow.classList.add("tele-bang-flash");
+        window.clearTimeout(endCycleFlashTimer);
+        endCycleFlashTimer = window.setTimeout(function () {
+          ecRow.classList.remove("tele-bang-flash");
+        }, 200);
+      }
+    });
+  }
 
   /* Optional: receive from Max (see min-rnbo-ui-SETUP.txt) */
   if (window.max && typeof window.max.bindInlet === "function") {

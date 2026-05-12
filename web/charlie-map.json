@@ -1,5 +1,5 @@
 {
-  "patchCommentsSource": "Charlie web UI ↔ RNBO inports (export has 0 params; controls are [inport] tags).",
+  "patchCommentsSource": "Charlie web UI ↔ RNBO (charlie.testme.json): knobs/buttons → message inports; patch also has params speed/start/length/speed2/start2/length2 (not wired to this UI).",
   "visualization": {
     "source": "signalOutlet",
     "outletTag": "out3",
@@ -49,10 +49,8 @@
     {
       "uiIndex": 1,
       "uiLabel": "normal / inverse",
-      "optional": true,
       "tryParamIds": [],
-      "tryInportTags": [],
-      "note": "No mapping assigned — patch inports gain3, hold, gogogo still free."
+      "tryInportTags": ["invertion"]
     },
     {
       "uiIndex": 2,
@@ -62,5 +60,5 @@
     }
   ],
   "unmappedPatchInports": ["gain3", "hold", "gogogo"],
-  "unmappedPatchInportsNote": "Present in export desc.inports but not wired to this UI. Wire one to btn[1] or add controls if needed."
+  "unmappedPatchInportsNote": "Message inports in export without a min-rnbo-ui control (dump / inverse_dump are message outports, not inports)."
 }

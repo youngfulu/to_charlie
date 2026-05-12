@@ -1,6 +1,6 @@
 /**
  * Charlie RNBO web host — maps min-rnbo-ui → params/inports from charlie-map.json
- * Patch: ../charlie.testme.json
+ * Patch: ../charlie.testme.json — buffers: ../dependencies.json → media/*.mp3
  */
 
 (function () {
@@ -20,9 +20,24 @@
   var scopeW = 0;
   var scopeH = 0;
 
-  var dumpLo = Infinity;
-  var dumpHi = -Infinity;
   var lastNorm = 0;
+  /** Last time RNBO sent `end_cycle` (ms); iframe uses for bang-style flash. */
+  var endCycleBangAt = 0;
+
+  /** Dump stream → HUD lamp in iframe (0…1); `dumpRawTarget` updated on each dump message */
+  var dumpRawTarget = 0;
+  var dumpSmoothed = 0;
+  var dumpSmoothSlider = 35;
+
+  var uiFrameEl = null;
+  var fpsAcc = 0;
+  var fpsLastT = 0;
+  var lastFpsShown = 0;
+  var TELE_TAGS = ["glitch_phasor_lock", "glitch_phasor_lock2", "end_cycle", "state"];
+  var teleSnapshot = {};
+  for (var tsi = 0; tsi < TELE_TAGS.length; tsi++) {
+    teleSnapshot[TELE_TAGS[tsi]] = "—";
+  }
 
   /** One-pole low-pass on scope line input (per animation frame) */
   var scopeSampleLp = 0;
@@ -33,8 +48,33 @@
   var scopeRangeInit = false;
   var SCOPE_RANGE_CONTRACT = 0.07;
 
+  /** Main LED: follow level 0=min … 1=max (no extra gain). */
+
   function setStatus(t) {
     if (statusEl) statusEl.textContent = t;
+  }
+
+  function getUiFrame() {
+    if (!uiFrameEl) uiFrameEl = document.getElementById("ui-frame");
+    return uiFrameEl;
+  }
+
+  /** Push HUD updates into embedded min-rnbo-ui (second panel). */
+  function postHudToIframe(payload) {
+    var f = getUiFrame();
+    if (!f || !f.contentWindow) return;
+    try {
+      f.contentWindow.postMessage(
+        {
+          source: "charlie-hud",
+          dumpGlow: payload.dumpGlow,
+          telemetry: payload.telemetry,
+          fps: payload.fps,
+          endCycleBangAt: payload.endCycleBangAt
+        },
+        "*"
+      );
+    } catch (eP) {}
   }
 
   function loadRNBOScript(version) {
@@ -134,9 +174,9 @@
     }
 
     ctx.strokeStyle = "rgba(180, 255, 200, 0.95)";
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(0.65, Math.min(1.1, h * 0.018));
     ctx.shadowColor = "rgba(120, 255, 160, 0.35)";
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = Math.max(1, h * 0.045);
     ctx.beginPath();
     for (var j = 0; j < SCOPE_LEN; j++) {
       var x = (j / (SCOPE_LEN - 1)) * w;
@@ -158,19 +198,44 @@
       for (var i = 0; i < vals.length; i++) sum += vals[i];
       v = sum / vals.length;
     }
-    dumpLo = Math.min(dumpLo, v);
-    dumpHi = Math.max(dumpHi, v);
-    var span = dumpHi - dumpLo;
-    if (span < 1e-12) lastNorm = 0.5;
-    else lastNorm = (v - dumpLo) / span;
-
-    lastNorm = Math.max(0, Math.min(1, lastNorm));
-    if (led) {
-      led.style.opacity = String(0.12 + lastNorm * 0.88);
-      led.style.boxShadow = "0 0 " + (8 + 28 * lastNorm) + "px rgba(255,255,255," + (0.15 + 0.55 * lastNorm) + ")";
-    }
-
+    /* Literal 0…1 brightness range (patch should send normalized values). */
+    lastNorm = Math.max(0, Math.min(1, v));
     if (pushScope) pushScopeSample(v);
+  }
+
+  /** Map 0…1 level to a circular lamp element. */
+  function applyGlow(el, n) {
+    n = Math.max(0, Math.min(1, n));
+    if (!el) return;
+    var g = Math.round(255 * n);
+    el.style.background = "rgb(" + g + "," + g + "," + g + ")";
+    el.style.opacity = "1";
+    if (n < 0.004) {
+      el.style.boxShadow = "none";
+    } else {
+      var spread = 10 + 52 * n;
+      var blur = 22 + 94 * n;
+      var a0 = Math.min(1, 0.28 + 0.92 * n);
+      var a1 = Math.min(1, 0.12 + 0.55 * n);
+      el.style.boxShadow =
+        "0 0 " +
+        spread +
+        "px " +
+        blur +
+        "px rgba(255,255,255," +
+        a0 +
+        "), 0 0 " +
+        spread * 1.85 +
+        "px " +
+        blur * 1.35 +
+        "px rgba(255,245,255," +
+        a1 +
+        ")";
+    }
+  }
+
+  function applyLedVisual(n) {
+    applyGlow(led, n);
   }
 
   function findParam(device, tryIds) {
@@ -289,6 +354,170 @@
     }
   }
 
+  function kickPatchPlayback(device, RNBO) {
+    try {
+      var tr = device.transport;
+      if (tr) {
+        if (typeof tr.play === "function") tr.play();
+        else if (typeof tr.start === "function") tr.start();
+        else if (typeof tr.requestStart === "function") tr.requestStart();
+      }
+    } catch (eTr) {
+      console.warn("[charlie-web] transport start:", eTr);
+    }
+    try {
+      var holdTag = findInportTag(device, ["hold"]);
+      if (holdTag) applyInportFloat(device, holdTag, 1);
+    } catch (eH) {}
+    try {
+      var goTag = findInportTag(device, ["gogogo"]);
+      if (goTag) {
+        try {
+          device.scheduleEvent(new RNBO.MessageEvent(rnbTimeNow(RNBO), goTag, []));
+        } catch (eEmpty) {}
+        applyInportBang(device, goTag, 1);
+      }
+    } catch (eGo) {}
+  }
+
+  function startPatchPlayback(device, RNBO) {
+    if (!device) return;
+    if (device.__charliePlaybackPrimed) return;
+    device.__charliePlaybackPrimed = true;
+    kickPatchPlayback(device, RNBO);
+    window.setTimeout(function () {
+      kickPatchPlayback(device, RNBO);
+    }, 180);
+    window.setTimeout(function () {
+      kickPatchPlayback(device, RNBO);
+    }, 420);
+  }
+
+  /**
+   * Merge dependencies.json with patch export externalDataRefs (survives re-export with absolute paths).
+   * RNBO often writes absolute `file` paths; browsers need origin-relative media/*.mp3.
+   */
+  function mergeDepsWithExport(deps, patcher) {
+    var list = Array.isArray(deps) ? deps.slice() : [];
+    var byId = {};
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      if (!row || !row.id) continue;
+      byId[row.id] = { id: row.id, file: row.file, url: row.url };
+    }
+    var refs = (patcher && patcher.desc && patcher.desc.externalDataRefs) || [];
+    for (var j = 0; j < refs.length; j++) {
+      var r = refs[j];
+      if (!r || !r.id) continue;
+      var fh = (r.file && String(r.file)) || "";
+      var entry = byId[r.id] ? Object.assign({}, byId[r.id]) : { id: r.id };
+      if (/^https?:\/\//i.test(fh)) {
+        entry.url = fh;
+        delete entry.file;
+      } else if (fh) {
+        var norm = fh.replace(/\\/g, "/");
+        if (/^(\/|[A-Za-z]:)/.test(norm)) {
+          var parts = norm.split("/").filter(Boolean);
+          var base = parts[parts.length - 1];
+          if (base) entry.file = "media/" + base;
+        } else {
+          entry.file = norm.replace(/^\.\//, "");
+        }
+      }
+      byId[r.id] = entry;
+    }
+    var out = [];
+    for (var k in byId) {
+      if (Object.prototype.hasOwnProperty.call(byId, k)) out.push(byId[k]);
+    }
+    return out.length ? out : list;
+  }
+
+  /**
+   * dependencies.json uses paths like "media/foo.mp3" (relative to export root).
+   * This page lives in /web/index.html, so resolve against / (parent of web/), not /web/.
+   */
+  function rewriteDepsForWebHost(deps) {
+    if (!deps || !deps.length) return [];
+    var base = new URL("../", window.location.href);
+    var out = [];
+    for (var i = 0; i < deps.length; i++) {
+      var d = deps[i];
+      if (!d || !d.id) continue;
+      if (d.url) {
+        out.push({ id: d.id, url: d.url });
+        continue;
+      }
+      var f = d.file || "";
+      if (!f) {
+        out.push(d);
+        continue;
+      }
+      if (/^https?:\/\//i.test(f)) {
+        out.push({ id: d.id, file: f });
+        continue;
+      }
+      try {
+        var rel = f.replace(/^\.\//, "");
+        var abs = new URL(rel, base).href;
+        out.push({ id: d.id, file: abs });
+        console.info("[charlie-web] buffer file URL:", d.id, "→", abs);
+      } catch (eU) {
+        console.warn("[charlie-web] buffer path resolve failed:", d.id, f, eU);
+        out.push(d);
+      }
+    }
+    return out;
+  }
+
+  function loadBufferDependencies(device, RNBO, patcher) {
+    return fetch("../dependencies.json")
+      .then(function (r) {
+        return r && r.ok ? r.json() : [];
+      })
+      .catch(function () {
+        return [];
+      })
+      .then(function (deps) {
+        var merged = mergeDepsWithExport(Array.isArray(deps) ? deps : [], patcher || {});
+        var fixed = rewriteDepsForWebHost(merged);
+        if (!fixed.length) {
+          console.warn("[charlie-web] No buffer dependencies after merge (check dependencies.json + patch externalDataRefs).");
+          return [];
+        }
+        if (typeof device.loadDataBufferDependencies !== "function") {
+          console.warn("[charlie-web] loadDataBufferDependencies not available on this RNBO.js build.");
+          return [];
+        }
+        return device.loadDataBufferDependencies(fixed);
+      })
+      .then(function (results) {
+        if (Array.isArray(results)) {
+          for (var ri = 0; ri < results.length; ri++) {
+            var rr = results[ri];
+            if (rr && rr.type === "success") console.info("[charlie-web] DataBuffer OK:", rr.id);
+            else if (rr) console.warn("[charlie-web] DataBuffer FAIL:", rr.id, rr.error || rr);
+          }
+        }
+        return results;
+      });
+  }
+
+  function formatTelemetryPayload(ev) {
+    var nums = payloadNumbers(ev);
+    if (nums.length) return String(nums[0]);
+    var p = ev.payload;
+    if (p == null) return "—";
+    if (typeof p === "boolean") return p ? "1" : "0";
+    if (typeof p === "string") return p.length > 14 ? p.slice(0, 14) + "…" : p;
+    try {
+      var s = JSON.stringify(p);
+      return s.length > 16 ? s.slice(0, 16) + "…" : s;
+    } catch (eJ) {
+      return String(p);
+    }
+  }
+
   function collectMappedInportTags(charlieMap) {
     var set = {};
     function add(list) {
@@ -325,6 +554,24 @@
       return;
     }
     if (target.tag) applyInportBang(device, target.tag, on01);
+  }
+
+  /** Push default UI levels into RNBO (matches min-rnbo-ui defaults). */
+  function applyCharlieBootstrap(device, charlieMap, resolved, whichbufferParam) {
+    var klist = charlieMap.knobs || [];
+    var defaultsMidi = [127, 127, Math.round(1 + 0.4 * 126)];
+    for (var ui = 0; ui < defaultsMidi.length; ui++) {
+      var entry = null;
+      for (var q = 0; q < klist.length; q++) {
+        if (klist[q].uiIndex === ui) {
+          entry = klist[q];
+          break;
+        }
+      }
+      if (entry) applyKnob(device, entry, defaultsMidi[ui], resolved, whichbufferParam);
+    }
+    var b0 = resolved.buttons[0];
+    if (b0) applyButtonTarget(device, b0, 1);
   }
 
   /**
@@ -433,6 +680,8 @@
 
   function main() {
     resizeScope();
+    fpsLastT = typeof performance !== "undefined" ? performance.now() : Date.now();
+
     window.addEventListener("resize", function () {
       resizeScope();
     });
@@ -466,6 +715,10 @@
         return RNBO.createDevice({ context: context, patcher: patcher }).then(function (device) {
           window.rnboDevice = device;
           window.rnboAudioContext = context;
+          /* Buffers: load after AudioContext.resume() (see body click) — decodeAudioData + correct /media/ URLs */
+          return device;
+        })
+          .then(function (device) {
           device.node.connect(outputNode);
 
           var vizCfg = charlieMap.visualization || {};
@@ -493,8 +746,8 @@
               try {
                 var splitter = context.createChannelSplitter(nch);
                 vizAnalyser = context.createAnalyser();
-                vizAnalyser.fftSize = 2048;
-                vizAnalyser.smoothingTimeConstant = 0.78;
+                vizAnalyser.fftSize = 1024;
+                vizAnalyser.smoothingTimeConstant = 0.22;
                 device.node.connect(splitter);
                 splitter.connect(vizAnalyser, chIdx, 0);
                 vizTimeBuf = new Float32Array(vizAnalyser.fftSize);
@@ -593,11 +846,25 @@
           );
 
           device.messageEvent.subscribe(function (ev) {
-            if (vizSource !== "messageOutport") return;
-            if (vizMsgTags.indexOf(ev.tag) < 0) return;
-            var nums = payloadNumbers(ev);
-            if (nums.length) {
-              for (var ni = 0; ni < nums.length; ni++) updateLedFromDump([nums[ni]]);
+            var tag = ev.tag;
+            if (vizSource === "messageOutport" && vizMsgTags.indexOf(tag) >= 0) {
+              var numsViz = payloadNumbers(ev);
+              if (numsViz.length) {
+                for (var ni = 0; ni < numsViz.length; ni++) updateLedFromDump([numsViz[ni]]);
+              }
+            }
+            if (tag === "dump") {
+              var dnums = payloadNumbers(ev);
+              if (dnums.length) dumpRawTarget = Math.max(0, Math.min(1, dnums[0]));
+              else if (typeof ev.payload === "number" && isFinite(ev.payload)) {
+                dumpRawTarget = Math.max(0, Math.min(1, ev.payload));
+              }
+            }
+            if (tag === "end_cycle") {
+              endCycleBangAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            }
+            if (TELE_TAGS.indexOf(tag) >= 0) {
+              teleSnapshot[tag] = formatTelemetryPayload(ev);
             }
           });
 
@@ -605,6 +872,10 @@
 
           window.addEventListener("message", function (ev) {
             var d = ev.data;
+            if (d && d.source === "charlie-dump-smooth" && typeof d.value === "number") {
+              dumpSmoothSlider = d.value;
+              return;
+            }
             if (!d || d.source !== "min-rnbo-ui" || !Array.isArray(d.args)) return;
             var args = d.args;
             var verb = args[0];
@@ -632,13 +903,39 @@
             context.resume();
           });
 
-          document.body.addEventListener(
-            "click",
-            function () {
-              context.resume();
-            },
-            { once: true }
-          );
+          applyCharlieBootstrap(device, charlieMap, resolved, whichbufferParam);
+
+          var deviceBuffersReady = false;
+
+          function onUserAudioGesture() {
+            var resumeP;
+            try {
+              var r = context.resume();
+              resumeP = r && typeof r.then === "function" ? r : Promise.resolve();
+            } catch (eR) {
+              resumeP = Promise.resolve();
+            }
+            return resumeP.then(function () {
+              if (!device.__charlieBufPromise) {
+                device.__charlieBufPromise = loadBufferDependencies(device, RNBO, patcher)
+                  .catch(function (eL) {
+                    console.warn("[charlie-web] buffer load error:", eL);
+                  })
+                  .then(function () {
+                    deviceBuffersReady = true;
+                  });
+              }
+              return device.__charlieBufPromise;
+            })
+              .then(function () {
+                window.setTimeout(function () {
+                  startPatchPlayback(device, RNBO);
+                }, 120);
+              });
+          }
+
+          /* First pointerdown anywhere (including iframe) hits parent capture → user gesture for resume + buffers. */
+          window.addEventListener("pointerdown", onUserAudioGesture, { once: true, capture: true });
 
           var msg =
             "Charlie RNBO — audio ready (tap anywhere). ";
@@ -652,15 +949,36 @@
             if (vizAnalyser && vizTimeBuf) {
               vizAnalyser.getFloatTimeDomainData(vizTimeBuf);
               var n = vizTimeBuf.length;
-              var acc = 0;
-              for (var bi = 0; bi < n; bi++) acc += vizTimeBuf[bi] * vizTimeBuf[bi];
-              var rms = Math.sqrt(acc / Math.max(1, n));
-              updateLedFromDump([rms], { pushScope: false });
               var pick = vizTimeBuf[n - 1];
               scopeSampleLp =
                 SCOPE_SAMPLE_ALPHA * pick + (1 - SCOPE_SAMPLE_ALPHA) * scopeSampleLp;
               pushScopeSample(scopeSampleLp);
             }
+            /* Dump → center “video” lamp: slider 0 = no smoothing, 100 = heavy smoothing */
+            var sm = dumpSmoothSlider;
+            if (sm <= 0) {
+              dumpSmoothed = dumpRawTarget;
+            } else {
+              var sNorm = sm / 100;
+              var step = 0.0028 + Math.pow(1 - sNorm, 2.25) * 0.62;
+              dumpSmoothed += (dumpRawTarget - dumpSmoothed) * step;
+            }
+            dumpSmoothed = Math.max(0, Math.min(1, dumpSmoothed));
+            lastNorm = dumpSmoothed;
+            applyLedVisual(dumpSmoothed);
+            var nowT = typeof performance !== "undefined" ? performance.now() : Date.now();
+            fpsAcc += 1;
+            if (nowT - fpsLastT >= 500) {
+              lastFpsShown = Math.round((fpsAcc * 1000) / (nowT - fpsLastT));
+              fpsAcc = 0;
+              fpsLastT = nowT;
+            }
+            postHudToIframe({
+              dumpGlow: dumpSmoothed,
+              telemetry: teleSnapshot,
+              fps: lastFpsShown,
+              endCycleBangAt: endCycleBangAt
+            });
             drawScope();
             requestAnimationFrame(loop);
           });
