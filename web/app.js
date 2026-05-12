@@ -654,10 +654,17 @@
       if (dragPointerId === null || ev.pointerId !== dragPointerId) return;
       dragging = false;
       dragPointerId = null;
+      clampQuantizeRnd(imn);
     }
 
     function onPointerMove(ev) {
       if (!dragging || dragPointerId === null || ev.pointerId !== dragPointerId) return;
+      if (!(ev.buttons & 1)) {
+        dragging = false;
+        dragPointerId = null;
+        clampQuantizeRnd(imn);
+        return;
+      }
       var dx = ev.clientX - dragLx;
       var dy = ev.clientY - dragLy;
       dragLx = ev.clientX;
@@ -671,11 +678,22 @@
     window.addEventListener("pointermove", onPointerMove, true);
 
     window.addEventListener("message", function (ev) {
+      if (SELF_ORIGIN !== "*" && ev.origin !== SELF_ORIGIN) return;
       var d = ev.data;
       if (!d || d.source !== "charlie-rnd") return;
       if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
+      if (d.buttons != null && !(d.buttons & 1)) {
+        clampQuantizeRnd(imn);
+        return;
+      }
       applyRndDelta(d.dx, d.dy);
     });
+
+    window.addEventListener("blur", function () {
+      if (dragging) clampQuantizeRnd(imn);
+      dragging = false;
+      dragPointerId = null;
+    }, true);
   }
 
   function main() {

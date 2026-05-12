@@ -882,23 +882,44 @@
       true
     );
 
+    function rndSendReset() {
+      try {
+        window.parent.postMessage({ source: "charlie-rnd", dx: 0, dy: 0, buttons: 0 }, "*");
+      } catch (eRnd) {}
+    }
+
     function rndDragEnd(ev) {
-      if (rndDragPid !== null && ev.pointerId === rndDragPid) rndDragPid = null;
+      if (rndDragPid !== null && ev.pointerId === rndDragPid) {
+        rndDragPid = null;
+        rndSendReset();
+      }
     }
 
     document.addEventListener("pointerup", rndDragEnd, true);
     document.addEventListener("pointercancel", rndDragEnd, true);
 
+    window.addEventListener("blur", function () {
+      if (rndDragPid !== null) {
+        rndDragPid = null;
+        rndSendReset();
+      }
+    });
+
     document.addEventListener(
       "pointermove",
       function (ev) {
         if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
+        if (!(ev.buttons & 1)) {
+          rndDragPid = null;
+          rndSendReset();
+          return;
+        }
         var dx = ev.clientX - rndLx;
         var dy = ev.clientY - rndLy;
         rndLx = ev.clientX;
         rndLy = ev.clientY;
         try {
-          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy }, "*");
+          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy, buttons: ev.buttons }, "*");
         } catch (eRnd) {}
       },
       true
