@@ -433,6 +433,7 @@
         <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
         <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
         <div id="hud-fps-meter">— fps</div>
+        <button type="button" class="txt-btn on" id="videoToggleBtn" style="margin-top:0.4rem;">◉ Video</button>
       </div>
     </div>
   </div>
@@ -862,6 +863,30 @@
   }
 
   toMax("ui_ready");
+
+  /* First interaction anywhere in the iframe primes audio in the parent */
+  if (isEmbedParent() && window.parent && window.parent !== window) {
+    document.addEventListener("pointerdown", function () {
+      toMax("first_interact");
+    }, { once: true });
+  }
+
+  /* Video / circle toggle in HUD */
+  var videoToggleBtn = document.getElementById("videoToggleBtn");
+  if (videoToggleBtn && isEmbedParent() && window.parent && window.parent !== window) {
+    var _videoMode = true;
+    videoToggleBtn.addEventListener("click", function () {
+      _videoMode = !_videoMode;
+      videoToggleBtn.textContent = _videoMode ? "◉ Video" : "○ Circle";
+      videoToggleBtn.classList.toggle("on", _videoMode);
+      try {
+        window.parent.postMessage(
+          { source: "charlie-video-toggle", mode: _videoMode ? "video" : "circle" },
+          "*"
+        );
+      } catch (e) {}
+    });
+  }
 
   /* Charlie host: click-drag rnd relay (parent does not see moves inside iframe) */
   if (isEmbedParent() && window.parent && window.parent !== window) {

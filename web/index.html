@@ -12,6 +12,17 @@
       overflow: hidden;
       font-family: system-ui, sans-serif;
     }
+    /* Video lamp: fullscreen behind controls; brightness + invert driven by app.js */
+    #video-lamp {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 100;
+      display: block;
+    }
     /* Signal lamp: black at 0, bright glow at 1 (driven in app.js); soft edge via blur */
     #dump-led {
       position: fixed;
@@ -29,6 +40,7 @@
       pointer-events: none;
       z-index: 100;
       transition: none;
+      display: none;
     }
     #scope-wrap {
       position: fixed;
@@ -70,6 +82,7 @@
   </style>
 </head>
 <body>
+  <video id="video-lamp" src="../3rd.mov" autoplay loop muted playsinline aria-hidden="true"></video>
   <div id="dump-led" aria-hidden="true"></div>
   <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
   <p id="status">Loading…</p>

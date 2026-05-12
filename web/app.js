@@ -12,6 +12,7 @@
 
   var statusEl = document.getElementById("status");
   var led = document.getElementById("dump-led");
+  var videoLampEl = document.getElementById("video-lamp");
   var canvas = document.getElementById("scope");
   var ctx = canvas.getContext("2d");
 
@@ -28,6 +29,8 @@
   var dumpRawTarget = 0;
   var dumpSmoothed = 0;
   var dumpSmoothSlider = 35;
+  var gpl2Raw = 0;
+  var videoMode = true;
 
   var uiFrameEl = null;
   var fpsAcc = 0;
@@ -841,6 +844,10 @@
                 dumpRawTarget = Math.max(0, Math.min(1, ev.payload));
               }
             }
+            if (tag === "glitch_phasor_lock2") {
+              var gpl2nums = payloadNumbers(ev);
+              if (gpl2nums.length) gpl2Raw = gpl2nums[0];
+            }
             if (tag === "end_cycle") {
               endCycleBangAt = typeof performance !== "undefined" ? performance.now() : Date.now();
             }
@@ -855,6 +862,12 @@
             var d = ev.data;
             if (d && d.source === "charlie-dump-smooth" && typeof d.value === "number") {
               dumpSmoothSlider = d.value;
+              return;
+            }
+            if (d && d.source === "charlie-video-toggle") {
+              videoMode = d.mode === "video";
+              if (videoLampEl) videoLampEl.style.display = videoMode ? "block" : "none";
+              if (led) led.style.display = videoMode ? "none" : "block";
               return;
             }
             if (!d || d.source !== "min-rnbo-ui" || !Array.isArray(d.args)) return;
@@ -881,7 +894,8 @@
               applyButtonTarget(device, bt, bv);
               return;
             }
-            context.resume();
+            /* Any other iframe interaction (bang, panel_open, first_interact, etc.) → prime audio */
+            onUserAudioGesture();
           });
 
           applyCharlieBootstrap(device, charlieMap, resolved, whichbufferParam);
@@ -947,6 +961,11 @@
             dumpSmoothed = Math.max(0, Math.min(1, dumpSmoothed));
             lastNorm = dumpSmoothed;
             applyLedVisual(dumpSmoothed);
+            if (videoMode && videoLampEl) {
+              videoLampEl.style.filter =
+                "brightness(" + Math.max(0, dumpSmoothed * 1.5) + ") " +
+                "invert(" + Math.max(0, Math.min(1, gpl2Raw * 0.5)) + ")";
+            }
             var nowT = typeof performance !== "undefined" ? performance.now() : Date.now();
             fpsAcc += 1;
             if (nowT - fpsLastT >= 500) {
