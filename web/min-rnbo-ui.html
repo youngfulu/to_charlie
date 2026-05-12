@@ -927,12 +927,16 @@
       "pointermove",
       function (ev) {
         if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
+        if (!(ev.buttons & 1)) {
+          rndDragPid = null;
+          return;
+        }
         var dx = ev.clientX - rndLx;
         var dy = ev.clientY - rndLy;
         rndLx = ev.clientX;
         rndLy = ev.clientY;
         try {
-          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy }, "*");
+          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy, buttons: ev.buttons }, "*");
         } catch (eRnd) {}
       },
       true

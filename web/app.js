@@ -658,6 +658,7 @@
       var d = ev.data;
       if (!d || d.source !== "charlie-rnd") return;
       if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
+      if (d.buttons != null && !(d.buttons & 1)) return;
       applyRndDelta(d.dx, d.dy);
     });
   }
@@ -963,7 +964,7 @@
             applyLedVisual(dumpSmoothed);
             if (videoMode && videoLampEl) {
               videoLampEl.style.filter =
-                "brightness(" + Math.max(0, dumpSmoothed * 1.5) + ") " +
+                "brightness(" + Math.max(0.3, dumpSmoothed * 1.5) + ") " +
                 "invert(" + Math.max(0, Math.min(1, gpl2Raw * 0.5)) + ")";
             }
             var nowT = typeof performance !== "undefined" ? performance.now() : Date.now();
