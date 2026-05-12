@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <title>Charlie RNBO</title>
   <style>
     html, body {
@@ -11,6 +12,7 @@
       background: #0a0a0a;
       overflow: hidden;
       font-family: system-ui, sans-serif;
+      color-scheme: only light;
     }
     /* Video lamp: fullscreen behind controls; brightness + invert driven by app.js */
     #video-lamp {
@@ -82,15 +84,43 @@
       border: 0;
       z-index: 2;
     }
+    #start-btn {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 200;
+      background: none;
+      border: none;
+      padding: 0;
+      color: rgba(255, 255, 255, 0.45);
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: color 0.2s ease, opacity 0.4s ease;
+    }
+    #start-btn:hover { color: rgba(255, 255, 255, 0.85); }
+    #start-btn.gone { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
+  <button id="start-btn">what was that day ?</button>
   <video id="video-lamp" src="../3rd.mov" autoplay loop muted playsinline aria-hidden="true"></video>
   <div id="dump-led" aria-hidden="true"></div>
   <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
   <p id="status">Loading…</p>
   <iframe id="ui-frame" title="Controls" src="./min-rnbo-ui.html?embed=1"></iframe>
 
+  <script>
+    document.getElementById("start-btn").addEventListener("click", function () {
+      var btn = this;
+      var vid = document.getElementById("video-lamp");
+      if (vid) vid.play().catch(function () {});
+      btn.classList.add("gone");
+      setTimeout(function () { btn.style.display = "none"; }, 450);
+    });
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

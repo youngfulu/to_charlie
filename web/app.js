@@ -383,32 +383,6 @@
     } catch (eTr) {
       console.warn("[charlie-web] transport start:", eTr);
     }
-    var holdTag = findInportTag(device, ["hold"]);
-    try {
-      if (holdTag) applyInportFloat(device, holdTag, 1);
-    } catch (eH) {}
-    var goTag = findInportTag(device, ["gogogo"]);
-    try {
-      if (goTag) {
-        scheduleInportPayload(device, RNBO, goTag, []);
-        window.setTimeout(function () {
-          applyInportBang(device, goTag, 1);
-        }, 30);
-      }
-    } catch (eGo) {}
-    window.setTimeout(function () {
-      try {
-        if (goTag) {
-          scheduleInportPayload(device, RNBO, goTag, []);
-          applyInportBang(device, goTag, 1);
-        }
-      } catch (e2) {}
-    }, 200);
-    window.setTimeout(function () {
-      try {
-        if (goTag) applyInportBang(device, goTag, 1);
-      } catch (e3) {}
-    }, 500);
   }
 
   /**
@@ -541,7 +515,7 @@
   /** Push default UI levels into RNBO (matches min-rnbo-ui defaults). */
   function applyCharlieBootstrap(device, charlieMap, resolved, whichbufferParam) {
     var klist = charlieMap.knobs || [];
-    var defaultsMidi = [127, 127, 127];
+    var defaultsMidi = [51, 127, 30];
     for (var ui = 0; ui < defaultsMidi.length; ui++) {
       var entry = null;
       for (var q = 0; q < klist.length; q++) {
@@ -558,111 +532,6 @@
     if (gain3tag) applyInportFloat(device, gain3tag, 1);
   }
 
-  /**
-   * Maps primary-button click-drag to param `rnd` (any direction).
-   * Dragging uses pixel deltas: right and up increase, left and down decrease (combined axes).
-   */
-  function setupMouseRnd(device, charlieMap, missing) {
-    var cfg = charlieMap.mouseRnd || {};
-    var tryIds = cfg.tryParamIds || [];
-    var tryIn = cfg.tryInportTags || [];
-    var rndParam = tryIds.length ? findParam(device, tryIds) : null;
-    var rndTag = tryIn.length ? findInportTag(device, tryIn) : null;
-    var pixelsForFullRange =
-      cfg.pixelsForFullRange != null ? cfg.pixelsForFullRange : 320;
-    var imn = cfg.inMin != null ? cfg.inMin : 0;
-    var imx = cfg.inMax != null ? cfg.inMax : 1;
-    var rndFloatState = (imn + imx) * 0.5;
-
-    if (tryIds.length && !rndParam && !rndTag) {
-      missing.push("mouse rnd → param " + tryIds.join(" or "));
-    }
-    if (tryIn.length && !rndTag && !rndParam) {
-      missing.push("mouse rnd → inport " + tryIn.join(" or "));
-    }
-    if (!rndParam && !rndTag) {
-      return;
-    }
-
-    function clampQuantizeRnd(nextVal) {
-      if (rndParam) {
-        var mn = rndParam.min != null ? rndParam.min : 0;
-        var mx = rndParam.max != null ? rndParam.max : 1;
-        var nv = Math.max(mn, Math.min(mx, nextVal));
-        if (rndParam.steps != null && rndParam.steps > 1) {
-          var step = (mx - mn) / (rndParam.steps - 1);
-          nv = mn + Math.round((nv - mn) / step) * step;
-        }
-        rndParam.value = nv;
-        return;
-      }
-      if (rndTag) {
-        var a = imn;
-        var b = imx;
-        rndFloatState = Math.max(a, Math.min(b, nextVal));
-        applyInportFloat(device, rndTag, rndFloatState);
-      }
-    }
-
-    function applyRndDelta(dx, dy) {
-      var mn = rndParam ? rndParam.min != null ? rndParam.min : 0 : imn;
-      var mx = rndParam ? rndParam.max != null ? rndParam.max : 1 : imx;
-      var cur = rndParam ? rndParam.value : rndFloatState;
-      var span = mx - mn;
-      if (Math.abs(pixelsForFullRange) < 1e-6) return;
-      var deltaPx = dx - dy;
-      var dv = (deltaPx / pixelsForFullRange) * span;
-      clampQuantizeRnd(cur + dv);
-    }
-
-    var dragging = false;
-    var dragPointerId = null;
-    var dragLx = 0;
-    var dragLy = 0;
-
-    function parentDragSurfaceOk(evTarget) {
-      if (!evTarget) return true;
-      if (evTarget.id === "ui-frame") return false;
-      return true;
-    }
-
-    function onPointerDown(ev) {
-      if (ev.button !== 0 || !parentDragSurfaceOk(ev.target)) return;
-      dragging = true;
-      dragPointerId = ev.pointerId;
-      dragLx = ev.clientX;
-      dragLy = ev.clientY;
-    }
-
-    function onPointerEnd(ev) {
-      if (dragPointerId === null || ev.pointerId !== dragPointerId) return;
-      dragging = false;
-      dragPointerId = null;
-    }
-
-    function onPointerMove(ev) {
-      if (!dragging || dragPointerId === null || ev.pointerId !== dragPointerId) return;
-      var dx = ev.clientX - dragLx;
-      var dy = ev.clientY - dragLy;
-      dragLx = ev.clientX;
-      dragLy = ev.clientY;
-      applyRndDelta(dx, dy);
-    }
-
-    window.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("pointerup", onPointerEnd, true);
-    window.addEventListener("pointercancel", onPointerEnd, true);
-    window.addEventListener("pointermove", onPointerMove, true);
-
-    window.addEventListener("message", function (ev) {
-      var d = ev.data;
-      if (!d || d.source !== "charlie-rnd") return;
-      if (d.dragEnd) { clampQuantizeRnd(imn); return; }
-      if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
-      if (d.buttons != null && !(d.buttons & 1)) return;
-      applyRndDelta(d.dx, d.dy);
-    });
-  }
 
   function main() {
     resizeScope();
@@ -858,7 +727,25 @@
             }
           });
 
-          setupMouseRnd(device, charlieMap, missing);
+          var rndCfg = charlieMap.mouseRnd || {};
+          var rndTryIn = rndCfg.tryInportTags || [];
+          var rndTag = rndTryIn.length ? findInportTag(device, rndTryIn) : null;
+          var rndImn = rndCfg.inMin != null ? rndCfg.inMin : 0;
+          var rndImx = rndCfg.inMax != null ? rndCfg.inMax : 1;
+          var rndPxFull = rndCfg.pixelsForFullRange != null ? rndCfg.pixelsForFullRange : 320;
+          var rndFloatState = (rndImn + rndImx) * 0.5;
+          if (rndTryIn.length && !rndTag) {
+            missing.push("mouse rnd → inport " + rndTryIn.join(" or "));
+          }
+          function applyRndDelta(dx, dy) {
+            if (!rndTag) return;
+            if (Math.abs(rndPxFull) < 1e-6) return;
+            var span = rndImx - rndImn;
+            var deltaPx = dx - dy;
+            var dv = (deltaPx / rndPxFull) * span;
+            rndFloatState = Math.max(rndImn, Math.min(rndImx, rndFloatState + dv));
+            applyInportFloat(device, rndTag, rndFloatState);
+          }
 
           window.addEventListener("message", function (ev) {
             var d = ev.data;
@@ -870,6 +757,12 @@
               videoMode = d.mode === "video";
               if (videoLampEl) videoLampEl.style.display = videoMode ? "block" : "none";
               if (led) led.style.display = videoMode ? "none" : "block";
+              return;
+            }
+            if (d && d.source === "charlie-rnd") {
+              if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
+              if (!d.pressed) return;
+              applyRndDelta(d.dx, d.dy);
               return;
             }
             if (!d || d.source !== "min-rnbo-ui" || !Array.isArray(d.args)) return;
@@ -896,6 +789,24 @@
               applyButtonTarget(device, bt, bv);
               return;
             }
+            if (verb === "buff_index") {
+              var bit = findInportTag(device, ["buff index"]);
+              if (bit) applyInportFloat(device, bit, +args[1]);
+              return;
+            }
+            if (verb === "hold") {
+              var ht = findInportTag(device, ["hold"]);
+              if (ht) applyInportFloat(device, ht, +args[1] ? 1 : 0);
+              return;
+            }
+            if (verb === "gogogo") {
+              var gt = findInportTag(device, ["gogogo"]);
+              if (gt) {
+                try { scheduleInportPayload(device, window.RNBO, gt, []); } catch (e) {}
+                applyInportBang(device, gt, 1);
+              }
+              return;
+            }
             /* Any other iframe interaction (bang, panel_open, first_interact, etc.) → prime audio */
             onUserAudioGesture();
           });
@@ -905,6 +816,9 @@
           var deviceBuffersReady = false;
 
           function onUserAudioGesture() {
+            if (videoLampEl && videoLampEl.paused) {
+              videoLampEl.play().catch(function () {});
+            }
             var resumeP;
             try {
               var r = context.resume();

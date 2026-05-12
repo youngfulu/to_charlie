@@ -59,6 +59,12 @@
       "tryInportTags": ["flow"]
     }
   ],
+  "buffIndex": {
+    "tryInportTags": ["buff index"],
+    "values": [0, 1, 2],
+    "labels": ["low", "mid", "charlie"],
+    "note": "HUD buttons select buffer index 0=low 1=mid 2=charlie; sent via buff_index verb."
+  },
   "unmappedPatchInports": ["gain3", "hold", "gogogo"],
   "unmappedPatchInportsNote": "Message inports in export without a min-rnbo-ui control (dump / inverse_dump are message outports, not inports)."
 }

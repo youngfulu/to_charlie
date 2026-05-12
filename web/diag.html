@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Charlie — diagnostics</title>
+  <style>
+    body { background: #111; color: #cfc; font: 13px/1.6 monospace; padding: 1.5rem; margin: 0; }
+    h1 { color: #fff; font-size: 1rem; margin: 0 0 1rem; }
+    .pass { color: #6f6; }
+    .fail { color: #f66; }
+    .warn { color: #fa0; }
+    .info { color: #8cf; }
+    li { margin: 0.15rem 0; list-style: none; }
+    #log { padding: 0; }
+    #events { margin-top: 1rem; padding: 0; }
+    #events li { color: #adf; }
+    button { margin: 1rem 0 0; padding: 0.4rem 1rem; background: #333; color: #fff; border: 1px solid #555; cursor: pointer; font: inherit; border-radius: 4px; }
+    button:hover { background: #444; }
+  </style>
+</head>
+<body>
+<h1>Charlie RNBO — diagnostics</h1>
+<ul id="log"></ul>
+<div id="event-head" style="display:none;color:#aaa;font-size:0.9em;margin-top:1rem;">Message events received:</div>
+<ul id="events"></ul>
+<button id="startBtn">Click to prime AudioContext + start patch</button>
+
+<script>
+(function() {
+  var log = document.getElementById("log");
+  var evList = document.getElementById("events");
+  var evHead = document.getElementById("event-head");
+  var btn = document.getElementById("startBtn");
+
+  function entry(cls, msg) {
+    var li = document.createElement("li");
+    li.className = cls;
+    li.textContent = "[" + new Date().toISOString().slice(11,23) + "] " + msg;
+    log.appendChild(li);
+    console.log(msg);
+  }
+
+  function evEntry(msg) {
+    evHead.style.display = "";
+    var li = document.createElement("li");
+    li.textContent = msg;
+    evList.appendChild(li);
+    if (evList.children.length > 40) evList.removeChild(evList.firstChild);
+  }
+
+  var device = null;
+  var context = null;
+
+  // Step 1: load patch JSON
+  entry("info", "Fetching charlie.testme.json …");
+  fetch("../charlie.testme.json")
+    .then(function(r) {
+      if (!r.ok) throw new Error("HTTP " + r.status + " for charlie.testme.json");
+      return r.json();
+    })
+    .then(function(patcher) {
+      var ver = patcher.desc && patcher.desc.meta && patcher.desc.meta.rnboversion;
+      entry("pass", "Patch loaded. RNBO version: " + ver);
+
+      // Step 2: load rnbo.min.js from CDN
+      var cdnUrl = "https://c74-public.nyc3.digitaloceanspaces.com/rnbo/" + encodeURIComponent(ver) + "/rnbo.min.js";
+      entry("info", "Loading rnbo.min.js from CDN: " + cdnUrl);
+      return new Promise(function(res, rej) {
+        var s = document.createElement("script");
+        s.src = cdnUrl;
+        s.onload = function() { res(patcher); };
+        s.onerror = function() { rej(new Error("CDN load failed: " + cdnUrl)); };
+        document.head.appendChild(s);
+      });
+    })
+    .then(function(patcher) {
+      entry("pass", "rnbo.min.js loaded. window.RNBO: " + (!!window.RNBO));
+
+      // Step 3: create AudioContext (suspended until gesture)
+      var WACtx = window.AudioContext || window.webkitAudioContext;
+      if (!WACtx) throw new Error("No AudioContext");
+      context = new WACtx();
+      entry("info", "AudioContext state: " + context.state);
+
+      // Step 4: create device
+      entry("info", "Creating RNBO device …");
+      return window.RNBO.createDevice({ context: context, patcher: patcher })
+        .then(function(dev) {
+          device = dev;
+          entry("pass", "Device created. numOutputChannels: " + dev.numOutputChannels);
+
+          var inports = (dev.inports || []).map(function(p){return p.tag;});
+          var outports = (dev.outports || []).map(function(p){return p.tag;});
+          entry("info", "Inports: " + inports.join(", "));
+          entry("info", "Outports: " + outports.join(", "));
+
+          // Step 5: connect audio
+          var gain = context.createGain();
+          gain.connect(context.destination);
+          dev.node.connect(gain);
+          entry("pass", "device.node connected to destination");
+
+          // Step 6: subscribe to all message events
+          dev.messageEvent.subscribe(function(ev) {
+            evEntry(ev.tag + " → " + JSON.stringify(ev.payload));
+          });
+          entry("info", "messageEvent subscribed — waiting for events …");
+
+          // Step 7: load deps JSON (not triggered yet, just check)
+          return fetch("../dependencies.json").then(function(r) { return r.json(); }).then(function(deps) {
+            entry("info", "dependencies.json loaded: " + deps.map(function(d){return d.id+"→"+d.file;}).join(", "));
+            entry("warn", "Click the button below to prime AudioContext and start the patch");
+          });
+        });
+    })
+    .catch(function(e) {
+      entry("fail", "ERROR: " + (e && e.message ? e.message : String(e)));
+    });
+
+  btn.addEventListener("click", function() {
+    if (!device || !context) {
+      entry("fail", "Device not ready yet");
+      return;
+    }
+    entry("info", "Resuming AudioContext …");
+    context.resume().then(function() {
+      entry("pass", "AudioContext resumed. State: " + context.state);
+
+      // load buffers
+      entry("info", "Loading buffer dependencies …");
+      var base = new URL("../", window.location.href);
+      return fetch("../dependencies.json").then(function(r){return r.json();}).then(function(deps) {
+        var fixed = deps.map(function(d) {
+          if (d.url) return d;
+          var rel = (d.file||"").replace(/^\.\//, "");
+          try { return { id: d.id, file: new URL(rel, base).href }; }
+          catch(e) { return d; }
+        });
+        entry("info", "Buffer URLs: " + fixed.map(function(d){return d.id+": "+d.file;}).join(" | "));
+        return device.loadDataBufferDependencies(fixed);
+      }).then(function(results) {
+        (results||[]).forEach(function(r) {
+          if (r && r.type === "success") entry("pass", "Buffer OK: " + r.id);
+          else entry("fail", "Buffer FAIL: " + (r&&r.id) + " — " + (r&&(r.error||JSON.stringify(r))));
+        });
+
+        // start transport
+        try {
+          var tr = device.transport;
+          if (tr) {
+            if (typeof tr.play === "function") { tr.play(); entry("pass", "transport.play()"); }
+            else if (typeof tr.start === "function") { tr.start(); entry("pass", "transport.start()"); }
+          } else {
+            entry("warn", "No transport on device");
+          }
+        } catch(e) { entry("fail", "transport error: " + e.message); }
+
+        // hold
+        try {
+          var RNBO = window.RNBO;
+          var holdTag = null;
+          (device.inports||[]).forEach(function(p){ if(p.tag==="hold") holdTag=p.tag; });
+          if (holdTag) {
+            device.scheduleEvent(new RNBO.MessageEvent(RNBO.TimeNow, "hold", [1]));
+            entry("pass", "hold → 1 sent");
+          } else entry("warn", "no hold inport");
+        } catch(e) { entry("fail", "hold error: " + e.message); }
+
+        // gain3
+        try {
+          var g3tag = null;
+          (device.inports||[]).forEach(function(p){ if(p.tag==="gain3") g3tag=p.tag; });
+          if (g3tag) {
+            device.scheduleEvent(new window.RNBO.MessageEvent(window.RNBO.TimeNow, "gain3", [1]));
+            entry("pass", "gain3 → 1 sent");
+          }
+        } catch(e) { entry("fail", "gain3 error: " + e.message); }
+
+        // gogogo
+        try {
+          var gg = null;
+          (device.inports||[]).forEach(function(p){ if(p.tag==="gogogo") gg=p.tag; });
+          if (gg) {
+            device.scheduleEvent(new window.RNBO.MessageEvent(window.RNBO.TimeNow, "gogogo", []));
+            device.scheduleEvent(new window.RNBO.MessageEvent(window.RNBO.TimeNow, "gogogo", [1]));
+            entry("pass", "gogogo bangs sent");
+            setTimeout(function() {
+              device.scheduleEvent(new window.RNBO.MessageEvent(window.RNBO.TimeNow, "gogogo", [1]));
+              entry("pass", "gogogo repeat sent (120ms)");
+            }, 120);
+          } else entry("warn", "no gogogo inport");
+        } catch(e) { entry("fail", "gogogo error: " + e.message); }
+
+        entry("info", "Startup complete. Watch for message events above. You should hear audio.");
+      });
+    }).catch(function(e) {
+      entry("fail", "resume/buffer error: " + e.message);
+    });
+  });
+})();
+</script>
+</body>
+</html>

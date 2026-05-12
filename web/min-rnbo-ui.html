@@ -427,13 +427,21 @@
         <div class="hud-head">Dump · live</div>
         <div id="hud-panel-dump-led" aria-hidden="true"></div>
         <label class="hud-label" for="dump-smooth">Dump smooth</label>
-        <input type="range" id="dump-smooth" min="0" max="100" value="35" title="Left: raw dump (no smoothing). Right: heavy smoothing for the video lamp." />
+        <input type="range" id="dump-smooth" min="0" max="100" value="5" title="Left: raw dump (no smoothing). Right: heavy smoothing for the video lamp." />
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock</span><span class="t-val" id="tele-gpl">—</span></div>
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock2</span><span class="t-val" id="tele-gpl2">—</span></div>
         <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
         <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
         <div id="hud-fps-meter">— fps</div>
         <button type="button" class="txt-btn on" id="videoToggleBtn" style="margin-top:0.4rem;">◉ Video</button>
+        <button type="button" class="txt-btn" id="holdToggleBtn" style="margin-top:0.4rem;">Hold: off</button>
+        <button type="button" class="txt-btn" id="goBtn" style="margin-top:0.4rem;">Go (bang)</button>
+        <div style="margin-top:0.6rem;font-size:0.68rem;color:var(--text-muted);letter-spacing:0.04em;">buff index</div>
+        <div style="display:flex;gap:4px;margin-top:0.25rem;">
+          <button type="button" class="txt-btn on" data-buff="0">low</button>
+          <button type="button" class="txt-btn" data-buff="1">mid</button>
+          <button type="button" class="txt-btn" data-buff="2">charlie</button>
+        </div>
       </div>
     </div>
   </div>
@@ -665,7 +673,7 @@
   ];
 
   /** MIDI 1..127 → charlie-map inMin..inMax (app.js midiToNorm127); defaults: gain=1, dw=1, noise≈0.4 */
-  var KNOB_DEFAULT_MIDI = [127, 127, 127];
+  var KNOB_DEFAULT_MIDI = [51, 127, 30];
 
   var knobs = [];
   var btns = [];
@@ -888,63 +896,73 @@
     });
   }
 
-  /* Charlie host: click-drag rnd relay (parent does not see moves inside iframe) */
+  /* Hold toggle + Go bang in HUD */
+  var holdToggleBtn = document.getElementById("holdToggleBtn");
+  if (holdToggleBtn) {
+    var _holdOn = false;
+    holdToggleBtn.addEventListener("click", function () {
+      _holdOn = !_holdOn;
+      holdToggleBtn.classList.toggle("on", _holdOn);
+      holdToggleBtn.textContent = _holdOn ? "Hold: on" : "Hold: off";
+      toMax("hold", _holdOn ? 1 : 0);
+    });
+  }
+  var goBtn = document.getElementById("goBtn");
+  if (goBtn) {
+    goBtn.addEventListener("click", function () { toMax("gogogo"); });
+  }
+
+  var buffBtns = document.querySelectorAll("[data-buff]");
+  buffBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      buffBtns.forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      toMax("buff_index", +btn.getAttribute("data-buff"));
+    });
+  });
+
+  /* Click + drag rnd relay (iframe → parent) */
   if (isEmbedParent() && window.parent && window.parent !== window) {
     function rndDragSurfaceOk(el) {
       return (
-        el &&
-        el.closest &&
+        el && el.closest &&
         !el.closest(".knob-field") &&
         !el.closest(".bang") &&
         !el.closest("button") &&
         !el.closest(".close-x")
       );
     }
-
+    var rndPressed = false;
     var rndDragPid = null;
-    var rndLx = 0;
-    var rndLy = 0;
-
-    document.addEventListener(
-      "pointerdown",
-      function (ev) {
-        if (ev.button !== 0 || !rndDragSurfaceOk(ev.target)) return;
-        rndDragPid = ev.pointerId;
-        rndLx = ev.clientX;
-        rndLy = ev.clientY;
-      },
-      true
-    );
-
-    function rndDragEnd(ev) {
-      if (rndDragPid !== null && ev.pointerId === rndDragPid) {
-        rndDragPid = null;
-        try { window.parent.postMessage({ source: "charlie-rnd", dragEnd: true }, "*"); } catch (e) {}
-      }
-    }
-
-    document.addEventListener("pointerup", rndDragEnd, true);
-    document.addEventListener("pointercancel", rndDragEnd, true);
-
-    document.addEventListener(
-      "pointermove",
-      function (ev) {
-        if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
-        if (!(ev.buttons & 1)) {
-          rndDragPid = null;
-          try { window.parent.postMessage({ source: "charlie-rnd", dragEnd: true }, "*"); } catch (e) {}
-          return;
-        }
-        var dx = ev.clientX - rndLx;
-        var dy = ev.clientY - rndLy;
-        rndLx = ev.clientX;
-        rndLy = ev.clientY;
-        try {
-          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy, buttons: ev.buttons }, "*");
-        } catch (eRnd) {}
-      },
-      true
-    );
+    var rndLx = 0, rndLy = 0;
+    function rndStop() { rndPressed = false; rndDragPid = null; }
+    document.addEventListener("pointerdown", function (ev) {
+      if (ev.button !== 0 || !rndDragSurfaceOk(ev.target)) return;
+      rndPressed = true;
+      rndDragPid = ev.pointerId;
+      rndLx = ev.clientX; rndLy = ev.clientY;
+    }, true);
+    document.addEventListener("pointerup", function (ev) {
+      if (ev.pointerId === rndDragPid) rndStop();
+    }, true);
+    document.addEventListener("pointercancel", function (ev) {
+      if (ev.pointerId === rndDragPid) rndStop();
+    }, true);
+    window.addEventListener("blur", rndStop);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) rndStop();
+    });
+    document.addEventListener("pointermove", function (ev) {
+      if (!rndPressed || ev.pointerId !== rndDragPid) return;
+      if (!(ev.buttons & 1)) { rndStop(); return; }
+      var dx = ev.clientX - rndLx;
+      var dy = ev.clientY - rndLy;
+      rndLx = ev.clientX; rndLy = ev.clientY;
+      if (dx === 0 && dy === 0) return;
+      try {
+        window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy, pressed: 1 }, "*");
+      } catch (e) {}
+    }, true);
   }
 })();
   </script>
