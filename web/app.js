@@ -541,7 +541,7 @@
   /** Push default UI levels into RNBO (matches min-rnbo-ui defaults). */
   function applyCharlieBootstrap(device, charlieMap, resolved, whichbufferParam) {
     var klist = charlieMap.knobs || [];
-    var defaultsMidi = [127, 127, Math.round(1 + 0.4 * 126)];
+    var defaultsMidi = [127, 127, 127];
     for (var ui = 0; ui < defaultsMidi.length; ui++) {
       var entry = null;
       for (var q = 0; q < klist.length; q++) {
