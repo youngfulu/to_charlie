@@ -917,7 +917,10 @@
     );
 
     function rndDragEnd(ev) {
-      if (rndDragPid !== null && ev.pointerId === rndDragPid) rndDragPid = null;
+      if (rndDragPid !== null && ev.pointerId === rndDragPid) {
+        rndDragPid = null;
+        try { window.parent.postMessage({ source: "charlie-rnd", dragEnd: true }, "*"); } catch (e) {}
+      }
     }
 
     document.addEventListener("pointerup", rndDragEnd, true);
@@ -929,6 +932,7 @@
         if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
         if (!(ev.buttons & 1)) {
           rndDragPid = null;
+          try { window.parent.postMessage({ source: "charlie-rnd", dragEnd: true }, "*"); } catch (e) {}
           return;
         }
         var dx = ev.clientX - rndLx;

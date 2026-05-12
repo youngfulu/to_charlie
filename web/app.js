@@ -657,6 +657,7 @@
     window.addEventListener("message", function (ev) {
       var d = ev.data;
       if (!d || d.source !== "charlie-rnd") return;
+      if (d.dragEnd) { clampQuantizeRnd(imn); return; }
       if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
       if (d.buttons != null && !(d.buttons & 1)) return;
       applyRndDelta(d.dx, d.dy);
