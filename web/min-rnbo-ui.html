@@ -17,6 +17,8 @@
       --overlay-dim: rgba(0, 0, 0, 0.55);
       --bang-size: clamp(1.5rem, 7vmin, 2.75rem);
       --bang-hud-size: calc(var(--bang-size) * 0.55);
+      /* Uniform scale for telemetry sheet + its opener (whole panel, not text-only) */
+      --hud-ui-zoom: calc(100% / 1.5);
       --modal-pad: clamp(0.75rem, 3vmin, 1.25rem);
       --knob-size: clamp(3.25rem, 16vmin, 5rem);
       --bang-ring: rgba(255, 255, 255, 0.55);
@@ -108,17 +110,24 @@
     .overlay--hud {
       z-index: 15;
     }
-    /* Shrink entire telemetry panel (chrome + type + controls), not typography alone */
+    /* Prefer zoom: shrinks layout + visuals together. Fallback: transform (paint-only). */
     .overlay--hud .panel.panel--hud {
       transform: scale(calc(1 / 1.5));
       transform-origin: top right;
     }
+    #root .bang.bang--hud {
+      transform: scale(calc(1 / 1.5));
+      transform-origin: center;
+    }
+    @supports (zoom: 1) {
+      .overlay--hud .panel.panel--hud,
+      #root .bang.bang--hud {
+        zoom: var(--hud-ui-zoom);
+        transform: none;
+      }
+    }
     .panel--hud {
       max-width: min(20rem, 94vw);
-    }
-    .bang-wrap--hud-scaled {
-      transform: scale(calc(1 / 1.5));
-      transform-origin: center right;
     }
     .hud-frame {
       display: flex;
@@ -394,7 +403,7 @@
       <div class="bang-wrap">
         <button type="button" class="bang" id="bang" aria-label="Open controls" title="Open"></button>
       </div>
-      <div class="bang-wrap bang-wrap--hud-scaled">
+      <div class="bang-wrap">
         <button type="button" class="bang bang--hud" id="bangHud" aria-label="Open telemetry HUD" title="HUD">◌</button>
       </div>
     </div>
@@ -882,44 +891,23 @@
       true
     );
 
-    function rndSendReset() {
-      try {
-        window.parent.postMessage({ source: "charlie-rnd", dx: 0, dy: 0, buttons: 0 }, "*");
-      } catch (eRnd) {}
-    }
-
     function rndDragEnd(ev) {
-      if (rndDragPid !== null && ev.pointerId === rndDragPid) {
-        rndDragPid = null;
-        rndSendReset();
-      }
+      if (rndDragPid !== null && ev.pointerId === rndDragPid) rndDragPid = null;
     }
 
     document.addEventListener("pointerup", rndDragEnd, true);
     document.addEventListener("pointercancel", rndDragEnd, true);
 
-    window.addEventListener("blur", function () {
-      if (rndDragPid !== null) {
-        rndDragPid = null;
-        rndSendReset();
-      }
-    });
-
     document.addEventListener(
       "pointermove",
       function (ev) {
         if (rndDragPid === null || ev.pointerId !== rndDragPid) return;
-        if (!(ev.buttons & 1)) {
-          rndDragPid = null;
-          rndSendReset();
-          return;
-        }
         var dx = ev.clientX - rndLx;
         var dy = ev.clientY - rndLy;
         rndLx = ev.clientX;
         rndLy = ev.clientY;
         try {
-          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy, buttons: ev.buttons }, "*");
+          window.parent.postMessage({ source: "charlie-rnd", dx: dx, dy: dy }, "*");
         } catch (eRnd) {}
       },
       true

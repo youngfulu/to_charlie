@@ -281,7 +281,8 @@
       var tag = tryTags[t];
       for (var i = 0; i < msgs.length; i++) {
         var m = msgs[i];
-        if (want != null && m.type !== want) continue;
+        /* RNBO sometimes omits port type; don't reject undefined === Inport */
+        if (want != null && m.type != null && m.type !== want) continue;
         if (m.tag === tag) return tag;
       }
     }
@@ -354,7 +355,21 @@
     }
   }
 
-  function kickPatchPlayback(device, RNBO) {
+  /** Max-style bang: empty payload (gogogo etc.). */
+  function scheduleInportPayload(device, RNBO, tag, payload) {
+    if (!tag) return;
+    try {
+      var pl = payload != null ? payload : [];
+      device.scheduleEvent(new RNBO.MessageEvent(rnbTimeNow(RNBO), tag, pl));
+    } catch (err) {
+      console.warn("[charlie-web] scheduleEvent payload failed for inport", tag, err);
+    }
+  }
+
+  function startPatchPlayback(device, RNBO) {
+    if (!device) return;
+    if (device.__charliePlaybackPrimed) return;
+    device.__charliePlaybackPrimed = true;
     try {
       var tr = device.transport;
       if (tr) {
@@ -365,72 +380,32 @@
     } catch (eTr) {
       console.warn("[charlie-web] transport start:", eTr);
     }
+    var holdTag = findInportTag(device, ["hold"]);
     try {
-      var holdTag = findInportTag(device, ["hold"]);
       if (holdTag) applyInportFloat(device, holdTag, 1);
     } catch (eH) {}
+    var goTag = findInportTag(device, ["gogogo"]);
     try {
-      var goTag = findInportTag(device, ["gogogo"]);
       if (goTag) {
-        try {
-          device.scheduleEvent(new RNBO.MessageEvent(rnbTimeNow(RNBO), goTag, []));
-        } catch (eEmpty) {}
-        applyInportBang(device, goTag, 1);
+        scheduleInportPayload(device, RNBO, goTag, []);
+        window.setTimeout(function () {
+          applyInportBang(device, goTag, 1);
+        }, 30);
       }
     } catch (eGo) {}
-  }
-
-  function startPatchPlayback(device, RNBO) {
-    if (!device) return;
-    if (device.__charliePlaybackPrimed) return;
-    device.__charliePlaybackPrimed = true;
-    kickPatchPlayback(device, RNBO);
     window.setTimeout(function () {
-      kickPatchPlayback(device, RNBO);
-    }, 180);
-    window.setTimeout(function () {
-      kickPatchPlayback(device, RNBO);
-    }, 420);
-  }
-
-  /**
-   * Merge dependencies.json with patch export externalDataRefs (survives re-export with absolute paths).
-   * RNBO often writes absolute `file` paths; browsers need origin-relative media/*.mp3.
-   */
-  function mergeDepsWithExport(deps, patcher) {
-    var list = Array.isArray(deps) ? deps.slice() : [];
-    var byId = {};
-    for (var i = 0; i < list.length; i++) {
-      var row = list[i];
-      if (!row || !row.id) continue;
-      byId[row.id] = { id: row.id, file: row.file, url: row.url };
-    }
-    var refs = (patcher && patcher.desc && patcher.desc.externalDataRefs) || [];
-    for (var j = 0; j < refs.length; j++) {
-      var r = refs[j];
-      if (!r || !r.id) continue;
-      var fh = (r.file && String(r.file)) || "";
-      var entry = byId[r.id] ? Object.assign({}, byId[r.id]) : { id: r.id };
-      if (/^https?:\/\//i.test(fh)) {
-        entry.url = fh;
-        delete entry.file;
-      } else if (fh) {
-        var norm = fh.replace(/\\/g, "/");
-        if (/^(\/|[A-Za-z]:)/.test(norm)) {
-          var parts = norm.split("/").filter(Boolean);
-          var base = parts[parts.length - 1];
-          if (base) entry.file = "media/" + base;
-        } else {
-          entry.file = norm.replace(/^\.\//, "");
+      try {
+        if (goTag) {
+          scheduleInportPayload(device, RNBO, goTag, []);
+          applyInportBang(device, goTag, 1);
         }
-      }
-      byId[r.id] = entry;
-    }
-    var out = [];
-    for (var k in byId) {
-      if (Object.prototype.hasOwnProperty.call(byId, k)) out.push(byId[k]);
-    }
-    return out.length ? out : list;
+      } catch (e2) {}
+    }, 200);
+    window.setTimeout(function () {
+      try {
+        if (goTag) applyInportBang(device, goTag, 1);
+      } catch (e3) {}
+    }, 500);
   }
 
   /**
@@ -470,7 +445,7 @@
     return out;
   }
 
-  function loadBufferDependencies(device, RNBO, patcher) {
+  function loadBufferDependencies(device, RNBO) {
     return fetch("../dependencies.json")
       .then(function (r) {
         return r && r.ok ? r.json() : [];
@@ -479,12 +454,8 @@
         return [];
       })
       .then(function (deps) {
-        var merged = mergeDepsWithExport(Array.isArray(deps) ? deps : [], patcher || {});
-        var fixed = rewriteDepsForWebHost(merged);
-        if (!fixed.length) {
-          console.warn("[charlie-web] No buffer dependencies after merge (check dependencies.json + patch externalDataRefs).");
-          return [];
-        }
+        var fixed = rewriteDepsForWebHost(deps);
+        if (!fixed.length) return [];
         if (typeof device.loadDataBufferDependencies !== "function") {
           console.warn("[charlie-web] loadDataBufferDependencies not available on this RNBO.js build.");
           return [];
@@ -493,10 +464,18 @@
       })
       .then(function (results) {
         if (Array.isArray(results)) {
+          var anyOk = false;
           for (var ri = 0; ri < results.length; ri++) {
             var rr = results[ri];
-            if (rr && rr.type === "success") console.info("[charlie-web] DataBuffer OK:", rr.id);
-            else if (rr) console.warn("[charlie-web] DataBuffer FAIL:", rr.id, rr.error || rr);
+            if (rr && rr.type === "success") {
+              anyOk = true;
+              console.info("[charlie-web] DataBuffer OK:", rr.id);
+            } else if (rr) console.warn("[charlie-web] DataBuffer FAIL:", rr.id, rr.error || rr);
+          }
+          if (results.length && !anyOk) {
+            console.warn(
+              "[charlie-web] No buffers decoded — samples will not play. Check dependencies.json and media/*.mp3 next to this export."
+            );
           }
         }
         return results;
@@ -572,6 +551,8 @@
     }
     var b0 = resolved.buttons[0];
     if (b0) applyButtonTarget(device, b0, 1);
+    var gain3tag = findInportTag(device, ["gain3"]);
+    if (gain3tag) applyInportFloat(device, gain3tag, 1);
   }
 
   /**
@@ -654,17 +635,10 @@
       if (dragPointerId === null || ev.pointerId !== dragPointerId) return;
       dragging = false;
       dragPointerId = null;
-      clampQuantizeRnd(imn);
     }
 
     function onPointerMove(ev) {
       if (!dragging || dragPointerId === null || ev.pointerId !== dragPointerId) return;
-      if (!(ev.buttons & 1)) {
-        dragging = false;
-        dragPointerId = null;
-        clampQuantizeRnd(imn);
-        return;
-      }
       var dx = ev.clientX - dragLx;
       var dy = ev.clientY - dragLy;
       dragLx = ev.clientX;
@@ -678,22 +652,11 @@
     window.addEventListener("pointermove", onPointerMove, true);
 
     window.addEventListener("message", function (ev) {
-      if (SELF_ORIGIN !== "*" && ev.origin !== SELF_ORIGIN) return;
       var d = ev.data;
       if (!d || d.source !== "charlie-rnd") return;
       if (typeof d.dx !== "number" || typeof d.dy !== "number") return;
-      if (d.buttons != null && !(d.buttons & 1)) {
-        clampQuantizeRnd(imn);
-        return;
-      }
       applyRndDelta(d.dx, d.dy);
     });
-
-    window.addEventListener("blur", function () {
-      if (dragging) clampQuantizeRnd(imn);
-      dragging = false;
-      dragPointerId = null;
-    }, true);
   }
 
   function main() {
@@ -935,7 +898,7 @@
             }
             return resumeP.then(function () {
               if (!device.__charlieBufPromise) {
-                device.__charlieBufPromise = loadBufferDependencies(device, RNBO, patcher)
+                device.__charlieBufPromise = loadBufferDependencies(device, RNBO)
                   .catch(function (eL) {
                     console.warn("[charlie-web] buffer load error:", eL);
                   })
