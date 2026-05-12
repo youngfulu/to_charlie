@@ -31,6 +31,9 @@
   var dumpSmoothSlider = 35;
   var gpl2Raw = 0;
   var videoMode = true;
+  var vidBrightness = 2.25;
+  var vidSaturation = 1.5;
+  var vidContrast = 2.55;
 
   var uiFrameEl = null;
   var fpsAcc = 0;
@@ -749,6 +752,13 @@
 
           window.addEventListener("message", function (ev) {
             var d = ev.data;
+            if (d && d.source === "charlie-vid-filter" && typeof d.value === "number") {
+              var pct = d.value / 100;
+              if (d.id === "vid-brightness") vidBrightness = pct;
+              else if (d.id === "vid-saturation") vidSaturation = pct;
+              else if (d.id === "vid-contrast") vidContrast = pct;
+              return;
+            }
             if (d && d.source === "charlie-dump-smooth" && typeof d.value === "number") {
               dumpSmoothSlider = d.value;
               return;
@@ -879,7 +889,9 @@
             applyLedVisual(dumpSmoothed);
             if (videoMode && videoLampEl) {
               videoLampEl.style.filter =
-                "brightness(" + Math.max(0.3, dumpSmoothed * 1.5) + ") " +
+                "brightness(" + Math.max(0.05, dumpSmoothed * 1.5 * vidBrightness) + ") " +
+                "saturate(" + vidSaturation + ") " +
+                "contrast(" + vidContrast + ") " +
                 "invert(" + Math.max(0, Math.min(1, gpl2Raw * 0.5)) + ")";
             }
             var nowT = typeof performance !== "undefined" ? performance.now() : Date.now();

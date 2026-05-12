@@ -112,19 +112,7 @@
     }
     /* Prefer zoom: shrinks layout + visuals together. Fallback: transform (paint-only). */
     .overlay--hud .panel.panel--hud {
-      transform: scale(calc(1 / 1.5));
-      transform-origin: top right;
-    }
-    #root .bang.bang--hud {
-      transform: scale(calc(1 / 1.5));
-      transform-origin: center;
-    }
-    @supports (zoom: 1) {
-      .overlay--hud .panel.panel--hud,
-      #root .bang.bang--hud {
-        zoom: var(--hud-ui-zoom);
-        transform: none;
-      }
+      transform: none;
     }
     .panel--hud {
       max-width: min(20rem, 94vw);
@@ -433,6 +421,13 @@
         <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
         <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
         <div id="hud-fps-meter">— fps</div>
+        <div class="hud-head" style="margin-top:0.5rem;">Video</div>
+        <label class="hud-label" for="vid-brightness">Brightness</label>
+        <input type="range" id="vid-brightness" min="0" max="300" value="225" />
+        <label class="hud-label" for="vid-saturation">Saturation</label>
+        <input type="range" id="vid-saturation" min="0" max="300" value="150" />
+        <label class="hud-label" for="vid-contrast">Contrast</label>
+        <input type="range" id="vid-contrast" min="0" max="300" value="255" />
         <button type="button" class="txt-btn on" id="videoToggleBtn" style="margin-top:0.4rem;">◉ Video</button>
         <button type="button" class="txt-btn" id="holdToggleBtn" style="margin-top:0.4rem;">Hold: off</button>
         <button type="button" class="txt-btn" id="goBtn" style="margin-top:0.4rem;">Go (bang)</button>
@@ -897,6 +892,16 @@
   }
 
   /* Hold toggle + Go bang in HUD */
+  ["vid-brightness", "vid-saturation", "vid-contrast"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", function () {
+      try {
+        window.parent.postMessage({ source: "charlie-vid-filter", id: id, value: +el.value }, "*");
+      } catch (e) {}
+    });
+  });
+
   var holdToggleBtn = document.getElementById("holdToggleBtn");
   if (holdToggleBtn) {
     var _holdOn = false;

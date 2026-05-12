@@ -19,14 +19,12 @@
       position: fixed;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%);
-      max-width: 100%;
-      max-height: 100%;
+      transform: translate(-50%, -50%) scale(0.667);
       width: auto;
       height: auto;
       pointer-events: none;
       z-index: 100;
-      display: block;
+      display: none;
     }
     /* Signal lamp: black at 0, bright glow at 1 (driven in app.js); soft edge via blur */
     #dump-led {
@@ -106,7 +104,7 @@
 </head>
 <body>
   <button id="start-btn">what was that day ?</button>
-  <video id="video-lamp" src="../3rd.mov" autoplay loop muted playsinline aria-hidden="true"></video>
+  <video id="video-lamp" src="./3rd.mp4" loop muted playsinline aria-hidden="true"></video>
   <div id="dump-led" aria-hidden="true"></div>
   <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
   <p id="status">Loading…</p>
@@ -116,7 +114,7 @@
     document.getElementById("start-btn").addEventListener("click", function () {
       var btn = this;
       var vid = document.getElementById("video-lamp");
-      if (vid) vid.play().catch(function () {});
+      if (vid) { vid.style.display = "block"; vid.play().catch(function () {}); }
       btn.classList.add("gone");
       setTimeout(function () { btn.style.display = "none"; }, 450);
     });
