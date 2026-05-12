@@ -24,6 +24,8 @@
   var lastNorm = 0;
   /** Last time RNBO sent `end_cycle` (ms); iframe uses for bang-style flash. */
   var endCycleBangAt = 0;
+  var finalBangAt = 0;
+  var glitchCountBangAt = 0;
 
   /** Dump stream → HUD lamp in iframe (0…1); `dumpRawTarget` updated on each dump message */
   var dumpRawTarget = 0;
@@ -39,7 +41,7 @@
   var fpsAcc = 0;
   var fpsLastT = 0;
   var lastFpsShown = 0;
-  var TELE_TAGS = ["glitch_phasor_lock", "glitch_phasor_lock2", "end_cycle", "state"];
+  var TELE_TAGS = ["glitch_phasor_lock", "glitch_phasor_lock2", "end_cycle", "state", "final_bang", "glitch_count"];
   var teleSnapshot = {};
   for (var tsi = 0; tsi < TELE_TAGS.length; tsi++) {
     teleSnapshot[TELE_TAGS[tsi]] = "—";
@@ -730,6 +732,12 @@
             if (tag === "end_cycle") {
               endCycleBangAt = typeof performance !== "undefined" ? performance.now() : Date.now();
             }
+            if (tag === "final_bang") {
+              finalBangAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            }
+            if (tag === "glitch_count") {
+              glitchCountBangAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+            }
             if (TELE_TAGS.indexOf(tag) >= 0) {
               teleSnapshot[tag] = formatTelemetryPayload(ev);
             }
@@ -802,6 +810,10 @@
               var bv = +args[2];
               var bt = resolved.buttons[bi];
               applyButtonTarget(device, bt, bv);
+              if (bi === 2) {
+                var holdT = findInportTag(device, ["hold"]);
+                if (holdT) applyInportFloat(device, holdT, bv ? 1 : 0);
+              }
               return;
             }
             if (verb === "buff_index") {
@@ -910,7 +922,9 @@
               dumpGlow: dumpSmoothed,
               telemetry: teleSnapshot,
               fps: lastFpsShown,
-              endCycleBangAt: endCycleBangAt
+              endCycleBangAt: endCycleBangAt,
+              finalBangAt: finalBangAt,
+              glitchCountBangAt: glitchCountBangAt
             });
             drawScope();
             requestAnimationFrame(loop);

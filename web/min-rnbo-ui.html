@@ -141,6 +141,35 @@
       filter: blur(10px);
       -webkit-filter: blur(10px);
     }
+    .bang-btn-row {
+      display: flex;
+      gap: 0.8rem;
+      align-items: flex-start;
+      margin: 0.15rem 0;
+    }
+    .bang-btn-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .bang-btn {
+      width: 18px;
+      height: 18px;
+      background: #2a2a2a;
+      border: 1px solid rgba(255,255,255,0.15);
+      transition: background 0.15s ease;
+    }
+    .bang-btn.flash {
+      background: #ff2020;
+      border-color: #ff5050;
+    }
+    .bang-btn-label {
+      font-size: 0.58rem;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
     .hud-label {
       font-size: 0.65rem;
       text-transform: uppercase;
@@ -419,7 +448,13 @@
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock</span><span class="t-val" id="tele-gpl">—</span></div>
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock2</span><span class="t-val" id="tele-gpl2">—</span></div>
         <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
+        <div class="hud-tele-row"><span class="t-name">final_bang</span><span class="t-val" id="tele-fb">—</span></div>
         <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
+        <div class="bang-btn-row">
+          <div class="bang-btn-wrap"><div class="bang-btn" id="bb-end-cycle"></div><div class="bang-btn-label">end_cycle</div></div>
+          <div class="bang-btn-wrap"><div class="bang-btn" id="bb-final-bang"></div><div class="bang-btn-label">final_bang</div></div>
+          <div class="bang-btn-wrap"><div class="bang-btn" id="bb-glitch-count"></div><div class="bang-btn-label">glitch_count</div></div>
+        </div>
         <div id="hud-fps-meter">— fps</div>
         <div class="hud-head" style="margin-top:0.5rem;">Video</div>
         <label class="hud-label" for="vid-brightness">Brightness</label>
@@ -429,14 +464,6 @@
         <label class="hud-label" for="vid-contrast">Contrast</label>
         <input type="range" id="vid-contrast" min="0" max="300" value="255" />
         <button type="button" class="txt-btn on" id="videoToggleBtn" style="margin-top:0.4rem;">◉ Video</button>
-        <button type="button" class="txt-btn" id="holdToggleBtn" style="margin-top:0.4rem;">Hold: off</button>
-        <button type="button" class="txt-btn" id="goBtn" style="margin-top:0.4rem;">Go (bang)</button>
-        <div style="margin-top:0.6rem;font-size:0.68rem;color:var(--text-muted);letter-spacing:0.04em;">buff index</div>
-        <div style="display:flex;gap:4px;margin-top:0.25rem;">
-          <button type="button" class="txt-btn on" data-buff="0">low</button>
-          <button type="button" class="txt-btn" data-buff="1">mid</button>
-          <button type="button" class="txt-btn" data-buff="2">charlie</button>
-        </div>
       </div>
     </div>
   </div>
@@ -813,8 +840,18 @@
     });
   }
 
-  var lastEndCycleBangHandled = 0;
-  var endCycleFlashTimer = null;
+  var lastBangHandled = { endCycle: 0, finalBang: 0, glitchCount: 0 };
+
+  function flashBangBtn(id, lastKey, bangAt) {
+    if (!bangAt || bangAt === lastBangHandled[lastKey]) return;
+    lastBangHandled[lastKey] = bangAt;
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove("flash");
+    void el.offsetWidth;
+    el.classList.add("flash");
+    window.setTimeout(function () { el.classList.remove("flash"); }, 180);
+  }
 
   /* Parent pushes dump lamp, telemetry, fps (Charlie web host). */
   if (isEmbedParent() && window.parent && window.parent !== window) {
@@ -827,29 +864,18 @@
         var elGpl = document.getElementById("tele-gpl");
         var elGpl2 = document.getElementById("tele-gpl2");
         var elEc = document.getElementById("tele-ec");
+        var elFb = document.getElementById("tele-fb");
         var elSt = document.getElementById("tele-st");
         if (elGpl && t.glitch_phasor_lock != null) elGpl.textContent = String(t.glitch_phasor_lock);
         if (elGpl2 && t.glitch_phasor_lock2 != null) elGpl2.textContent = String(t.glitch_phasor_lock2);
         if (elEc && t.end_cycle != null) elEc.textContent = String(t.end_cycle);
+        if (elFb && t.final_bang != null) elFb.textContent = String(t.final_bang);
         if (elSt && t.state != null) elSt.textContent = String(t.state);
       }
       if (d.fps != null && hudFpsEl) hudFpsEl.textContent = d.fps + " fps";
-      var ecRow = document.querySelector(".hud-tele-row[data-tele=\"end_cycle\"]");
-      if (
-        ecRow &&
-        typeof d.endCycleBangAt === "number" &&
-        d.endCycleBangAt > 0 &&
-        d.endCycleBangAt !== lastEndCycleBangHandled
-      ) {
-        lastEndCycleBangHandled = d.endCycleBangAt;
-        ecRow.classList.remove("tele-bang-flash");
-        void ecRow.offsetWidth;
-        ecRow.classList.add("tele-bang-flash");
-        window.clearTimeout(endCycleFlashTimer);
-        endCycleFlashTimer = window.setTimeout(function () {
-          ecRow.classList.remove("tele-bang-flash");
-        }, 200);
-      }
+      flashBangBtn("bb-end-cycle",   "endCycle",   d.endCycleBangAt);
+      flashBangBtn("bb-final-bang",  "finalBang",  d.finalBangAt);
+      flashBangBtn("bb-glitch-count","glitchCount",d.glitchCountBangAt);
     });
   }
 
@@ -902,29 +928,6 @@
     });
   });
 
-  var holdToggleBtn = document.getElementById("holdToggleBtn");
-  if (holdToggleBtn) {
-    var _holdOn = false;
-    holdToggleBtn.addEventListener("click", function () {
-      _holdOn = !_holdOn;
-      holdToggleBtn.classList.toggle("on", _holdOn);
-      holdToggleBtn.textContent = _holdOn ? "Hold: on" : "Hold: off";
-      toMax("hold", _holdOn ? 1 : 0);
-    });
-  }
-  var goBtn = document.getElementById("goBtn");
-  if (goBtn) {
-    goBtn.addEventListener("click", function () { toMax("gogogo"); });
-  }
-
-  var buffBtns = document.querySelectorAll("[data-buff]");
-  buffBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      buffBtns.forEach(function (b) { b.classList.remove("on"); });
-      btn.classList.add("on");
-      toMax("buff_index", +btn.getAttribute("data-buff"));
-    });
-  });
 
   /* Click + drag rnd relay (iframe → parent) */
   if (isEmbedParent() && window.parent && window.parent !== window) {
