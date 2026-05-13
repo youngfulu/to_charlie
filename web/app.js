@@ -170,6 +170,12 @@
 
   function drawScope() {
     if (!initScope()) return;
+    var wrap = getScopeWrap();
+    if (wrap) {
+      var cw = wrap.clientWidth;
+      var ch = wrap.clientHeight;
+      if (cw !== scopeW || ch !== scopeH) resizeScope();
+    }
     var w = scopeW;
     var h = scopeH;
     if (w < 2 || h < 2) return;
