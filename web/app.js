@@ -184,32 +184,9 @@
     ctx.lineTo(w, h * 0.5);
     ctx.stroke();
 
-    var min = Infinity;
-    var max = -Infinity;
-    for (var i = 0; i < SCOPE_LEN; i++) {
-      var s = scopeBuf[i];
-      if (s < min) min = s;
-      if (s > max) max = s;
-    }
-    var kc = SCOPE_RANGE_CONTRACT;
-    if (!scopeRangeInit) {
-      scopeDispMin = min;
-      scopeDispMax = max;
-      scopeRangeInit = true;
-    } else {
-      if (min < scopeDispMin) scopeDispMin = min;
-      else scopeDispMin += (min - scopeDispMin) * kc;
-      if (max > scopeDispMax) scopeDispMax = max;
-      else scopeDispMax += (max - scopeDispMax) * kc;
-    }
-    min = scopeDispMin;
-    max = scopeDispMax;
-    var span = max - min;
-    if (span < 1e-9) {
-      min -= 0.5;
-      max += 0.5;
-      span = max - min;
-    }
+    var min = -1;
+    var max = 1;
+    var span = 2;
 
     ctx.strokeStyle = "rgba(180, 255, 200, 0.95)";
     ctx.lineWidth = Math.max(0.65, Math.min(1.1, h * 0.018));

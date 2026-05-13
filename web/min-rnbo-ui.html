@@ -124,16 +124,16 @@
     }
     #scope-wrap {
       position: fixed;
-      left: 0;
+      left: 16.67vw;
+      width: 33.33vw;
       bottom: 33vh;
-      width: 50vw;
       height: 45px;
       z-index: 5;
       pointer-events: none;
-      border-radius: 0 3px 3px 0;
+      border-radius: 3px;
       overflow: hidden;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-      background: rgba(0, 0, 0, 0.42);
+      background: transparent;
+      display: none;
     }
     #scope { display: block; width: 100%; height: 100%; }
 
@@ -487,8 +487,8 @@
     <span id="hold-btn-label">HOLD</span>
   </div>
 
-  <video id="video-lamp" src="./3rd.mp4" loop muted playsinline aria-hidden="true"
-    style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.667);width:auto;height:auto;pointer-events:none;z-index:0;display:none;"></video>
+  <video id="video-lamp" src="./3rd.mp4" loop muted playsinline autoplay aria-hidden="true"
+    style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.667);width:auto;height:auto;pointer-events:none;z-index:0;"></video>
 
   <div id="root">
     <div class="bang-stack">
@@ -531,7 +531,7 @@
         </div>
         <div id="hud-fps-meter">— fps</div>
         <label class="hud-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;user-select:none;">
-          <input type="checkbox" id="scope-toggle" checked style="accent-color:rgba(255,255,255,0.7);cursor:pointer;" />
+          <input type="checkbox" id="scope-toggle" style="accent-color:rgba(255,255,255,0.7);cursor:pointer;" />
           Waveform
         </label>
         <div class="hud-head" style="margin-top:0.5rem;">Video</div>
