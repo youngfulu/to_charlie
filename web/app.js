@@ -820,14 +820,12 @@
             if (verb === "btn") {
               var bi = +args[1];
               var bv = +args[2];
-              var bt = resolved.buttons[bi];
-              applyButtonTarget(device, bt, bv);
-              if (bi === 2 && bv) {
+              if (bi === 2) {
                 var gt = findInportTag(device, ["gogogo"]);
-                if (gt) {
-                  try { scheduleInportPayload(device, window.RNBO, gt, []); } catch (e) {}
-                  applyInportBang(device, gt, 1);
-                }
+                if (gt) scheduleInportPayload(device, window.RNBO, gt, []);
+              } else {
+                var bt = resolved.buttons[bi];
+                applyButtonTarget(device, bt, bv);
               }
               return;
             }
