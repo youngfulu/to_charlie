@@ -174,15 +174,7 @@
     var h = scopeH;
     if (w < 2 || h < 2) return;
 
-    ctx.fillStyle = "rgba(12,14,16,0.92)";
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, h * 0.5);
-    ctx.lineTo(w, h * 0.5);
-    ctx.stroke();
+    ctx.clearRect(0, 0, w, h);
 
     var min = -1;
     var max = 1;
