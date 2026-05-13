@@ -839,6 +839,17 @@
               if (ht) applyInportFloat(device, ht, +args[1] ? 1 : 0);
               return;
             }
+            if (verb === "rnd_tap") {
+              var rndCfgT = charlieMap.mouseRnd || {};
+              var rndInT = (rndCfgT.tryInportTags || []);
+              var rndTagT = rndInT.length ? findInportTag(device, rndInT) : null;
+              if (rndTagT) {
+                var rndMnT = rndCfgT.inMin != null ? rndCfgT.inMin : 0;
+                var rndMxT = rndCfgT.inMax != null ? rndCfgT.inMax : 1;
+                applyInportFloat(device, rndTagT, rndMnT + (+args[1]) * (rndMxT - rndMnT));
+              }
+              return;
+            }
             if (verb === "gogogo") {
               var gt = findInportTag(device, ["gogogo"]);
               if (gt) {

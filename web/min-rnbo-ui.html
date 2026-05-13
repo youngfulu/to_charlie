@@ -8,7 +8,7 @@
   <style>
     :root {
       /* Page fill: visible in browser; use html.max-embed { --page-fill: transparent } in jweb if needed */
-      --page-fill: #0c0c0c;
+      --page-fill: #000;
       --accent: rgba(255, 255, 255, 0.92);
       --accent-dim: rgba(255, 255, 255, 0.18);
       --dial-track: rgba(255, 255, 255, 0.28);
@@ -140,18 +140,47 @@
     }
     #scope { display: block; width: 100%; height: 100%; }
 
-    #hold-btn-wrap {
+    #video-lamp {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.667);
+      width: auto;
+      height: auto;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @media (max-width: 768px), (pointer: coarse) {
+      #video-lamp {
+        transform: translate(-50%, -50%) scale(0.8);
+      }
+    }
+
+    /* Bottom-left button stack (tap + hold) — hidden until activation */
+    #bottom-left-btns {
       position: fixed;
       bottom: clamp(16px, 5vmin, 32px);
       left: clamp(16px, 5vmin, 32px);
       z-index: 150;
       display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: clamp(10px, 2.5vmin, 18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 10s ease;
+    }
+    body.ui-active #bottom-left-btns {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #hold-btn-wrap, #tap-btn-wrap {
+      display: flex;
       flex-direction: column;
       align-items: center;
       gap: 5px;
-      pointer-events: auto;
     }
-    #holdBtn {
+    #holdBtn, #tapBtn {
       width: calc(var(--bang-hud-size) * 2);
       height: calc(var(--bang-hud-size) * 2);
       border-radius: 50%;
@@ -166,12 +195,28 @@
       background: rgba(255, 255, 255, 0.55);
       border-color: rgba(255, 255, 255, 0.9);
     }
-    #hold-btn-label {
+    #tapBtn.tapped {
+      background: rgba(255, 255, 255, 0.45);
+      border-color: rgba(255, 255, 255, 0.85);
+    }
+    #hold-btn-label, #tap-btn-label {
       font-size: 0.62rem;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: rgba(255, 255, 255, 0.75);
       text-shadow: 0 0 6px rgba(0,0,0,0.8);
+    }
+
+    /* HUD bang buttons — hidden until activation */
+    #root {
+      opacity: 0;
+      transition: opacity 10s ease;
+    }
+    body.ui-active #root {
+      opacity: 1;
+    }
+    body:not(.ui-active) #root .bang-wrap {
+      pointer-events: none;
     }
 
     .overlay--hud {
@@ -485,13 +530,19 @@
   <div id="dump-led" aria-hidden="true"></div>
   <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
 
-  <div id="hold-btn-wrap">
-    <button type="button" id="holdBtn" aria-label="Hold"></button>
-    <span id="hold-btn-label">HOLD</span>
+  <div id="bottom-left-btns">
+    <div id="hold-btn-wrap">
+      <button type="button" id="holdBtn" aria-label="Hold"></button>
+      <span id="hold-btn-label">HOLD</span>
+    </div>
+    <div id="tap-btn-wrap">
+      <button type="button" id="tapBtn" aria-label="Tap"></button>
+      <span id="tap-btn-label">TAP</span>
+    </div>
   </div>
 
   <video id="video-lamp" src="./3rd.mp4" loop muted playsinline aria-hidden="true"
-    style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.667);width:auto;height:auto;pointer-events:none;z-index:0;display:none;"></video>
+    style="display:none;"></video>
 
   <div id="root">
     <div class="bang-stack">
@@ -967,6 +1018,26 @@
 
   toMax("ui_ready");
 
+  /* Activation gate: parent sends charlie-start on first user gesture */
+  if (isEmbedParent()) {
+    window.addEventListener("message", function (ev) {
+      if (ev.data && ev.data.source === "charlie-start") {
+        document.body.classList.add("ui-active");
+      }
+    });
+  }
+
+  /* Tap button: one-hit random to rnd inport */
+  var tapBtn = document.getElementById("tapBtn");
+  if (tapBtn) {
+    tapBtn.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      tapBtn.classList.add("tapped");
+      window.setTimeout(function () { tapBtn.classList.remove("tapped"); }, 150);
+      toMax("rnd_tap", Math.random());
+    });
+  }
+
   /* First interaction anywhere in the iframe primes audio in the parent */
   if (isEmbedParent() && window.parent && window.parent !== window) {
     document.addEventListener("pointerdown", function () {
@@ -1058,7 +1129,8 @@
         !el.closest(".knob-field") &&
         !el.closest(".bang") &&
         !el.closest("button") &&
-        !el.closest(".close-x")
+        !el.closest(".close-x") &&
+        !el.closest("#bottom-left-btns")
       );
     }
     var rndPressed = false;

@@ -9,7 +9,7 @@
     html, body {
       margin: 0;
       height: 100%;
-      background: #0a0a0a;
+      background: #000;
       overflow: hidden;
       font-family: system-ui, sans-serif;
       color-scheme: only light;
@@ -45,7 +45,7 @@
       font-size: 13px;
       letter-spacing: 0.04em;
       cursor: pointer;
-      transition: color 0.2s ease, opacity 0.4s ease;
+      transition: color 0.2s ease, opacity 60s ease;
     }
     #start-btn:hover { color: rgba(255, 255, 255, 0.85); }
     #start-btn.gone { opacity: 0; pointer-events: none; }
@@ -63,11 +63,13 @@
       if (window.charlieResumeAudio) window.charlieResumeAudio();
       var f = document.getElementById("ui-frame");
       var vid = f && f.contentDocument && f.contentDocument.getElementById("video-lamp");
-      /* Unlock video element for iOS autoplay in gesture context; display stays hidden
-         until buffers are ready (app.js sets display:block + plays when done loading). */
+      /* Unlock video element for iOS; app.js shows + plays it when buffers ready. */
       if (vid) vid.play().then(function () { vid.pause(); vid.currentTime = 0; }).catch(function () {});
+      /* Activate HUD in iframe */
+      if (f && f.contentWindow) f.contentWindow.postMessage({ source: "charlie-start" }, "*");
+      /* Text fades over 60s then is removed */
       btn.classList.add("gone");
-      setTimeout(function () { btn.style.display = "none"; }, 450);
+      setTimeout(function () { btn.style.display = "none"; }, 62000);
     });
   </script>
   <script src="app.js"></script>
