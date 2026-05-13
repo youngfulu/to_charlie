@@ -44,7 +44,7 @@
     return f.contentDocument.getElementById("scope-wrap");
   }
 
-  var SCOPE_LEN = 2048;
+  var SCOPE_LEN = 682;
   var scopeBuf = new Float32Array(SCOPE_LEN);
   var scopeW = 0;
   var scopeH = 0;
