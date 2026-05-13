@@ -14,57 +14,6 @@
       font-family: system-ui, sans-serif;
       color-scheme: only light;
     }
-    /* Video lamp: fullscreen behind controls; brightness + invert driven by app.js */
-    #video-lamp {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0.667);
-      width: auto;
-      height: auto;
-      pointer-events: none;
-      z-index: 100;
-      display: none;
-    }
-    /* Signal lamp: black at 0, bright glow at 1 (driven in app.js); soft edge via blur */
-    #dump-led {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: clamp(calc(126px / 1.5), calc(27vmin / 1.5), calc(198px / 1.5));
-      height: clamp(calc(126px / 1.5), calc(27vmin / 1.5), calc(198px / 1.5));
-      border-radius: 50%;
-      background: #000;
-      opacity: 1;
-      box-shadow: none;
-      filter: blur(calc(18px / 1.5));
-      -webkit-filter: blur(calc(18px / 1.5));
-      pointer-events: none;
-      z-index: 100;
-      transition: none;
-      display: none;
-    }
-    #scope-wrap {
-      position: fixed;
-      left: 50%;
-      bottom: clamp(12px, 4vmin, 28px);
-      transform: translateX(-50%);
-      width: 60px;
-      height: 15px;
-      max-width: calc(100vw - 24px);
-      z-index: 99;
-      pointer-events: none;
-      border-radius: 3px;
-      overflow: hidden;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-      background: rgba(0, 0, 0, 0.42);
-    }
-    #scope {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
     #status {
       position: fixed;
       bottom: 8px;
@@ -87,7 +36,7 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 200;
+      z-index: 300;
       background: none;
       border: none;
       padding: 0;
@@ -104,18 +53,16 @@
 </head>
 <body>
   <button id="start-btn">what was that day ?</button>
-  <video id="video-lamp" src="./3rd.mp4" loop muted playsinline aria-hidden="true"></video>
-  <div id="dump-led" aria-hidden="true"></div>
-  <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
   <p id="status">Loading…</p>
-  <iframe id="ui-frame" title="Controls" src="./min-rnbo-ui.html?embed=1"></iframe>
+  <iframe id="ui-frame" title="Controls" src="./min-rnbo-ui.html?embed=1" allowtransparency="true"></iframe>
 
   <script>
     document.getElementById("start-btn").addEventListener("click", function () {
       var btn = this;
       /* iOS: call resume() synchronously in gesture handler before any async */
       if (window.charlieResumeAudio) window.charlieResumeAudio();
-      var vid = document.getElementById("video-lamp");
+      var f = document.getElementById("ui-frame");
+      var vid = f && f.contentDocument && f.contentDocument.getElementById("video-lamp");
       if (vid) { vid.style.display = "block"; vid.play().catch(function () {}); }
       btn.classList.add("gone");
       setTimeout(function () { btn.style.display = "none"; }, 450);

@@ -11,10 +11,38 @@
   var DEV_WHICHBUFFER_ON_KNOB0 = false;
 
   var statusEl = document.getElementById("status");
-  var led = document.getElementById("dump-led");
-  var videoLampEl = document.getElementById("video-lamp");
-  var canvas = document.getElementById("scope");
-  var ctx = canvas.getContext("2d");
+  var led = null;
+  var videoLampEl = null;
+  var canvas = null;
+  var ctx = null;
+
+  function getLedEl() {
+    if (led) return led;
+    var f = getUiFrame();
+    if (f && f.contentDocument) led = f.contentDocument.getElementById("dump-led");
+    return led;
+  }
+  function getVideoLampEl() {
+    if (videoLampEl) return videoLampEl;
+    var f = getUiFrame();
+    if (f && f.contentDocument) videoLampEl = f.contentDocument.getElementById("video-lamp");
+    return videoLampEl;
+  }
+  function initScope() {
+    if (ctx) return true;
+    var f = getUiFrame();
+    if (!f || !f.contentDocument) return false;
+    var c = f.contentDocument.getElementById("scope");
+    if (!c) return false;
+    canvas = c;
+    ctx = c.getContext("2d");
+    return true;
+  }
+  function getScopeWrap() {
+    var f = getUiFrame();
+    if (!f || !f.contentDocument) return null;
+    return f.contentDocument.getElementById("scope-wrap");
+  }
 
   var SCOPE_LEN = 2048;
   var scopeBuf = new Float32Array(SCOPE_LEN);
@@ -125,7 +153,8 @@
   }
 
   function resizeScope() {
-    var wrap = document.getElementById("scope-wrap");
+    if (!initScope()) return;
+    var wrap = getScopeWrap();
     if (!wrap || !canvas) return;
     var dpr = window.devicePixelRatio || 1;
     var w = wrap.clientWidth;
@@ -140,6 +169,7 @@
   }
 
   function drawScope() {
+    if (!initScope()) return;
     var w = scopeW;
     var h = scopeH;
     if (w < 2 || h < 2) return;
@@ -243,7 +273,7 @@
   }
 
   function applyLedVisual(n) {
-    applyGlow(led, n);
+    applyGlow(getLedEl(), n);
   }
 
   function findParam(device, tryIds) {
@@ -776,10 +806,17 @@
               dumpSmoothSlider = d.value;
               return;
             }
+            if (d && d.source === "charlie-inport" && typeof d.value === "number") {
+              var inpTag = findInportTag(device, [d.tag]);
+              if (inpTag) applyInportFloat(device, inpTag, d.value);
+              return;
+            }
             if (d && d.source === "charlie-video-toggle") {
               videoMode = d.mode === "video";
-              if (videoLampEl) videoLampEl.style.display = videoMode ? "block" : "none";
-              if (led) led.style.display = videoMode ? "none" : "block";
+              var vEl = getVideoLampEl();
+              if (vEl) vEl.style.display = videoMode ? "block" : "none";
+              var ledEl2 = getLedEl();
+              if (ledEl2) ledEl2.style.display = videoMode ? "none" : "block";
               return;
             }
             if (d && d.source === "charlie-rnd") {
@@ -810,9 +847,12 @@
               var bv = +args[2];
               var bt = resolved.buttons[bi];
               applyButtonTarget(device, bt, bv);
-              if (bi === 2) {
-                var holdT = findInportTag(device, ["hold"]);
-                if (holdT) applyInportFloat(device, holdT, bv ? 1 : 0);
+              if (bi === 2 && bv) {
+                var gt = findInportTag(device, ["gogogo"]);
+                if (gt) {
+                  try { scheduleInportPayload(device, window.RNBO, gt, []); } catch (e) {}
+                  applyInportBang(device, gt, 1);
+                }
               }
               return;
             }
@@ -843,8 +883,9 @@
           var deviceBuffersReady = false;
 
           function onUserAudioGesture() {
-            if (videoLampEl && videoLampEl.paused) {
-              videoLampEl.play().catch(function () {});
+            var vElGesture = getVideoLampEl();
+            if (vElGesture && vElGesture.paused) {
+              vElGesture.play().catch(function () {});
             }
             var resumeP;
             try {
@@ -904,8 +945,9 @@
             dumpSmoothed = Math.max(0, Math.min(1, dumpSmoothed));
             lastNorm = dumpSmoothed;
             applyLedVisual(dumpSmoothed);
-            if (videoMode && videoLampEl) {
-              videoLampEl.style.filter =
+            var vElRaf = getVideoLampEl();
+            if (videoMode && vElRaf) {
+              vElRaf.style.filter =
                 "brightness(" + Math.max(0.05, dumpSmoothed * 1.5 * vidBrightness) + ") " +
                 "saturate(" + vidSaturation + ") " +
                 "contrast(" + vidContrast + ") " +

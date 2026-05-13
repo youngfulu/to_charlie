@@ -107,6 +107,70 @@
       transform: scale(0.95);
     }
 
+    #dump-led {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: clamp(84px, 18vmin, 132px);
+      height: clamp(84px, 18vmin, 132px);
+      border-radius: 50%;
+      background: #000;
+      filter: blur(12px);
+      -webkit-filter: blur(12px);
+      pointer-events: none;
+      z-index: 2;
+      display: none;
+    }
+    #scope-wrap {
+      position: fixed;
+      left: 0;
+      bottom: 33vh;
+      width: 50vw;
+      height: 15px;
+      z-index: 5;
+      pointer-events: none;
+      border-radius: 0 3px 3px 0;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.42);
+    }
+    #scope { display: block; width: 100%; height: 100%; }
+
+    #hold-btn-wrap {
+      position: fixed;
+      bottom: clamp(16px, 5vmin, 32px);
+      left: clamp(16px, 5vmin, 32px);
+      z-index: 150;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      pointer-events: auto;
+    }
+    #holdBtn {
+      width: calc(var(--bang-hud-size) * 2);
+      height: calc(var(--bang-hud-size) * 2);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.38);
+      background: rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.08s ease, border-color 0.08s ease;
+      touch-action: none;
+    }
+    #holdBtn.held {
+      background: rgba(255, 255, 255, 0.55);
+      border-color: rgba(255, 255, 255, 0.9);
+    }
+    #hold-btn-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.75);
+      text-shadow: 0 0 6px rgba(0,0,0,0.8);
+    }
+
     .overlay--hud {
       z-index: 15;
     }
@@ -415,6 +479,17 @@
   </style>
 </head>
 <body>
+  <div id="dump-led" aria-hidden="true"></div>
+  <div id="scope-wrap"><canvas id="scope" width="840" height="176"></canvas></div>
+
+  <div id="hold-btn-wrap">
+    <button type="button" id="holdBtn" aria-label="Hold"></button>
+    <span id="hold-btn-label">HOLD</span>
+  </div>
+
+  <video id="video-lamp" src="./3rd.mp4" loop muted playsinline aria-hidden="true"
+    style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.667);width:auto;height:auto;pointer-events:none;z-index:0;display:none;"></video>
+
   <div id="root">
     <div class="bang-stack">
       <div class="bang-wrap">
@@ -445,17 +520,20 @@
         <div id="hud-panel-dump-led" aria-hidden="true"></div>
         <label class="hud-label" for="dump-smooth">Dump smooth</label>
         <input type="range" id="dump-smooth" min="0" max="100" value="5" title="Left: raw dump (no smoothing). Right: heavy smoothing for the video lamp." />
+        <label class="hud-label" for="movement1">movement1</label>
+        <input type="range" id="movement1" min="0" max="100" value="50" />
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock</span><span class="t-val" id="tele-gpl">—</span></div>
         <div class="hud-tele-row"><span class="t-name">glitch_phasor_lock2</span><span class="t-val" id="tele-gpl2">—</span></div>
-        <div class="hud-tele-row" data-tele="end_cycle"><span class="t-name">end_cycle</span><span class="t-val" id="tele-ec">—</span></div>
-        <div class="hud-tele-row"><span class="t-name">final_bang</span><span class="t-val" id="tele-fb">—</span></div>
-        <div class="hud-tele-row"><span class="t-name">state</span><span class="t-val" id="tele-st">—</span></div>
         <div class="bang-btn-row">
           <div class="bang-btn-wrap"><div class="bang-btn" id="bb-end-cycle"></div><div class="bang-btn-label">end_cycle</div></div>
           <div class="bang-btn-wrap"><div class="bang-btn" id="bb-final-bang"></div><div class="bang-btn-label">final_bang</div></div>
           <div class="bang-btn-wrap"><div class="bang-btn" id="bb-glitch-count"></div><div class="bang-btn-label">glitch_count</div></div>
         </div>
         <div id="hud-fps-meter">— fps</div>
+        <label class="hud-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="scope-toggle" checked style="accent-color:rgba(255,255,255,0.7);cursor:pointer;" />
+          Waveform
+        </label>
         <div class="hud-head" style="margin-top:0.5rem;">Video</div>
         <label class="hud-label" for="vid-brightness">Brightness</label>
         <input type="range" id="vid-brightness" min="0" max="300" value="225" />
@@ -480,6 +558,11 @@
     } catch (e) {
       return false;
     }
+  }
+
+  if (isEmbedParent()) {
+    document.documentElement.style.background = "transparent";
+    document.documentElement.style.backgroundColor = "transparent";
   }
 
   function toMax() {
@@ -799,14 +882,8 @@
   }
 
   closeX.addEventListener("click", closePanel);
-  overlay.addEventListener("click", function (ev) {
-    if (ev.target === overlay) closePanel();
-  });
 
   closeHudX.addEventListener("click", closeHudPanel);
-  overlayHud.addEventListener("click", function (ev) {
-    if (ev.target === overlayHud) closeHudPanel();
-  });
 
   document.addEventListener("keydown", function (ev) {
     if (ev.key !== "Escape") return;
@@ -863,14 +940,8 @@
         var t = d.telemetry;
         var elGpl = document.getElementById("tele-gpl");
         var elGpl2 = document.getElementById("tele-gpl2");
-        var elEc = document.getElementById("tele-ec");
-        var elFb = document.getElementById("tele-fb");
-        var elSt = document.getElementById("tele-st");
         if (elGpl && t.glitch_phasor_lock != null) elGpl.textContent = String(t.glitch_phasor_lock);
         if (elGpl2 && t.glitch_phasor_lock2 != null) elGpl2.textContent = String(t.glitch_phasor_lock2);
-        if (elEc && t.end_cycle != null) elEc.textContent = String(t.end_cycle);
-        if (elFb && t.final_bang != null) elFb.textContent = String(t.final_bang);
-        if (elSt && t.state != null) elSt.textContent = String(t.state);
       }
       if (d.fps != null && hudFpsEl) hudFpsEl.textContent = d.fps + " fps";
       flashBangBtn("bb-end-cycle",   "endCycle",   d.endCycleBangAt);
@@ -929,9 +1000,56 @@
   });
 
 
+  var holdBtn = document.getElementById("holdBtn");
+  if (holdBtn) {
+    var _holdActive = false;
+    function holdOn(ev) {
+      if (_holdActive) return;
+      _holdActive = true;
+      holdBtn.classList.add("held");
+      try { holdBtn.setPointerCapture(ev.pointerId); } catch (e) {}
+      toMax("hold", 1);
+    }
+    function holdOff() {
+      if (!_holdActive) return;
+      _holdActive = false;
+      holdBtn.classList.remove("held");
+      toMax("hold", 0);
+    }
+    holdBtn.addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      holdOn(ev);
+    });
+    holdBtn.addEventListener("pointerup", holdOff);
+    holdBtn.addEventListener("pointercancel", holdOff);
+    window.addEventListener("blur", holdOff);
+  }
+
+  var scopeToggleEl = document.getElementById("scope-toggle");
+  var scopeWrapEl = document.getElementById("scope-wrap");
+  if (scopeToggleEl && scopeWrapEl) {
+    scopeToggleEl.addEventListener("change", function () {
+      scopeWrapEl.style.display = scopeToggleEl.checked ? "block" : "none";
+    });
+  }
+
+  var movement1El = document.getElementById("movement1");
+  if (movement1El && isEmbedParent() && window.parent && window.parent !== window) {
+    movement1El.addEventListener("input", function () {
+      try {
+        window.parent.postMessage({ source: "charlie-inport", tag: "movement1", value: +movement1El.value / 100 }, "*");
+      } catch (e) {}
+    });
+  }
+
   /* Click + drag rnd relay (iframe → parent) */
   if (isEmbedParent() && window.parent && window.parent !== window) {
+    function anyOverlayOpen() {
+      return (overlay && overlay.classList.contains("open")) ||
+             (overlayHud && overlayHud.classList.contains("open"));
+    }
     function rndDragSurfaceOk(el) {
+      if (anyOverlayOpen()) return false;
       return (
         el && el.closest &&
         !el.closest(".knob-field") &&
