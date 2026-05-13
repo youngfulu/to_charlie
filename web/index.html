@@ -63,7 +63,9 @@
       if (window.charlieResumeAudio) window.charlieResumeAudio();
       var f = document.getElementById("ui-frame");
       var vid = f && f.contentDocument && f.contentDocument.getElementById("video-lamp");
-      if (vid) { vid.style.display = "block"; vid.play().catch(function () {}); }
+      /* Unlock video element for iOS autoplay in gesture context; display stays hidden
+         until buffers are ready (app.js sets display:block + plays when done loading). */
+      if (vid) vid.play().then(function () { vid.pause(); vid.currentTime = 0; }).catch(function () {});
       btn.classList.add("gone");
       setTimeout(function () { btn.style.display = "none"; }, 450);
     });

@@ -856,9 +856,9 @@
           var deviceBuffersReady = false;
 
           function onUserAudioGesture() {
-            var vElGesture = getVideoLampEl();
-            if (vElGesture && vElGesture.paused) {
-              vElGesture.play().catch(function () {});
+            if (deviceBuffersReady) {
+              var vElGesture = getVideoLampEl();
+              if (vElGesture && vElGesture.paused) vElGesture.play().catch(function () {});
             }
             var resumeP;
             try {
@@ -875,6 +875,8 @@
                   })
                   .then(function () {
                     deviceBuffersReady = true;
+                    var vEl = getVideoLampEl();
+                    if (vEl) { vEl.style.display = "block"; vEl.play().catch(function () {}); }
                   });
               }
               return device.__charlieBufPromise;
